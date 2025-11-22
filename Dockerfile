@@ -3,6 +3,7 @@ FROM node:18-alpine
 
 # Install Chrome dependencies for whatsapp-web.js
 RUN apk add \
+    curl \
     chromium \
     nss \
     freetype \
