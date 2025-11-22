@@ -12,10 +12,13 @@ const {
 	importSessionHandler,
 } = require('../controllers/session')
 
+const { requireRole } = require('../middleware/tokenAuth')
+
 const router = express.Router()
+const adminOnly = requireRole('admin')
 
 // Create new session
-router.post('/', createSessionHandler)
+router.post('/', adminOnly, createSessionHandler)
 
 // List sessions
 router.get('/', listSessionsHandler)
@@ -36,15 +39,15 @@ router.get('/health', getAllHealthHandler)
 router.get('/:id/health', getOneHealthHandler)
 
 // Restart a specific session
-router.post('/:id/restart', restartSessionHandler)
+router.post('/:id/restart', adminOnly, restartSessionHandler)
 
 // Delete a session
-router.delete('/:id', deleteSessionHandler)
+router.delete('/:id', adminOnly, deleteSessionHandler)
 
 // Export a session (with optional cache)
-router.get('/:id/export', exportSessionHandler)
+router.get('/:id/export', adminOnly, exportSessionHandler)
 
 // Import a session
-router.post('/import', importSessionHandler)
+router.post('/import', adminOnly, importSessionHandler)
 
 module.exports = router

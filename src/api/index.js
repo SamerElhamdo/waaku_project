@@ -4,14 +4,15 @@ const http = require('http')
 const path = require('path')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
-const bcrypt = require('bcryptjs')
+const jwt = require('./utils/simpleJwt')
 const helmet = require('helmet')
 const compression = require('compression')
 const swaggerUi = require('swagger-ui-express')
 const swaggerSpecs = require('./swagger')
 const sessionRoutes = require('./routes/session')
 const messageRoutes = require('./routes/messages')
-const { validateApiKey, logApiAccess, rateLimiter, generateApiKey } = require('./middleware/auth')
+const { validateApiKey, logApiAccess, rateLimiter } = require('./middleware/auth')
+const { requireAuth, requireRole } = require('./middleware/tokenAuth')
 const { initSocketIO } = require('./socket')
 const { restoreSessions } = require('./whatsapp/session')
 
@@ -29,6 +30,26 @@ const TRUST_PROXY = process.env.TRUST_PROXY
 if (TRUST_PROXY) {
   app.set('trust proxy', Number.isNaN(Number(TRUST_PROXY)) ? true : Number(TRUST_PROXY))
 }
+
+// Require JWT secret early
+const JWT_SECRET = (process.env.AUTH_JWT_SECRET || '').trim()
+if (!JWT_SECRET) {
+	throw new Error('AUTH_JWT_SECRET is required (set in environment)')
+}
+
+// Simple credential store from environment
+const USERS = [
+	{
+		username: process.env.ADMIN_USER || process.env.VITE_AUTH_USER || 'admin',
+		password: process.env.ADMIN_PASS || process.env.VITE_AUTH_PASS || 'admin',
+		role: 'admin'
+	},
+	{
+		username: process.env.USER_USER || 'user',
+		password: process.env.USER_PASS || 'user123',
+		role: 'user'
+	}
+]
 
 // Configurable CORS (comma-separated origins in CORS_ORIGINS), defaults to allow all
 const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()) : '*'
@@ -78,14 +99,27 @@ app.get('/api', (req, res) => {
 	res.redirect('/api-docs')
 })
 
-// UI auth removed - app now loads directly without login
+// ---- UI/Auth endpoints ----
+app.post('/auth/login', (req, res) => {
+	const { username, password } = req.body || {}
+	const found = USERS.find(u => u.username === username && u.password === password)
+	if (!found) {
+		return res.status(401).json({ error: 'Invalid credentials' })
+	}
+	const token = jwt.sign({ sub: found.username, role: found.role }, JWT_SECRET, { expiresIn: '7d' })
+	return res.json({ token, role: found.role, user: found.username })
+})
 
-// credentialsValid function removed - no longer needed
+app.post('/auth/logout', (req, res) => {
+	res.json({ success: true })
+})
 
-// Auth endpoints removed - no longer needed
+app.get('/auth/me', requireAuth, (req, res) => {
+	res.json({ user: req.user.sub, role: req.user.role })
+})
 
 // API routes (protected by API key)
-app.use('/api', validateApiKey)
+app.use('/api', validateApiKey, requireAuth)
 app.use('/api/sessions', sessionRoutes)
 app.use('/api/messages', messageRoutes)
 

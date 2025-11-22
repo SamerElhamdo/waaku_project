@@ -1,7 +1,7 @@
 <template>
 	<div class="flex flex-col h-full bg-gray-50">
 		<!-- Chat Header -->
-		<div v-if="chat" class="bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-10">
+		<div v-if="chat" class="bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-10" dir="rtl">
 			<div class="flex items-center space-x-3 flex-1 min-w-0">
 				<button
 					v-if="onMobile"
@@ -20,10 +20,10 @@
 				</div>
 				<div class="flex-1 min-w-0">
 					<h3 class="text-base font-semibold text-gray-900 truncate">
-						{{ chat.name || chat.contact?.name || 'Unknown' }}
+						{{ chat.name || chat.contact?.name || 'غير معروف' }}
 					</h3>
 					<p v-if="chat.isGroup" class="text-xs text-gray-500">
-						{{ chat.participantCount || 0 }} members
+						{{ chat.participantCount || 0 }} عضو
 					</p>
 					<p v-else-if="chat.contact?.number" class="text-xs text-gray-500 truncate">
 						{{ chat.contact.number }}
@@ -35,7 +35,7 @@
 					@click="refreshMessages"
 					:disabled="loadingMessages"
 					class="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-					title="Refresh messages"
+					title="تحديث الرسائل"
 				>
 					<svg
 						class="w-5 h-5 text-gray-600"
@@ -55,21 +55,21 @@
 			<svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
 			</svg>
-			<p class="text-gray-500">Select a chat to start messaging</p>
+			<p class="text-gray-500" dir="rtl">اختر محادثة لبدء المراسلة</p>
 		</div>
 
 		<!-- Chat Meta / Actions -->
-		<div v-if="chat" class="bg-gradient-to-r from-green-50 via-white to-blue-50 border-b border-gray-200 px-4 py-3 flex flex-col gap-2">
+		<div v-if="chat" class="bg-gradient-to-r from-green-50 via-white to-blue-50 border-b border-gray-200 px-4 py-3 flex flex-col gap-2" dir="rtl">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div class="flex flex-wrap items-center gap-2">
 					<span class="px-3 py-1 bg-white border border-green-200 text-green-700 rounded-full text-xs font-semibold">
-						{{ messages.length }} messages
+						{{ messages.length }} رسالة
 					</span>
 					<span class="px-3 py-1 bg-white border border-blue-200 text-blue-700 rounded-full text-xs font-semibold">
-						{{ mediaCount }} media
+						{{ mediaCount }} ميديا
 					</span>
 					<span class="px-3 py-1 bg-white border border-gray-200 text-gray-700 rounded-full text-xs">
-						Last update: {{ lastUpdatedText }}
+						آخر تحديث: {{ lastUpdatedText }}
 					</span>
 				</div>
 				<div class="flex items-center gap-2">
@@ -83,13 +83,13 @@
 								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 							</svg>
-							Refreshing...
+							جاري التحديث...
 						</span>
 						<span v-else class="flex items-center gap-2">
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
 							</svg>
-							Refresh
+							تحديث
 						</span>
 					</button>
 					<button
@@ -102,13 +102,13 @@
 								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 							</svg>
-							Exporting...
+							جاري التصدير...
 						</span>
 						<span v-else class="flex items-center gap-2">
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
 							</svg>
-							Export chat
+							تصدير المحادثة
 						</span>
 					</button>
 					<button
@@ -142,7 +142,7 @@
 					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
 				</svg>
-				<p class="text-gray-500 text-sm">Loading messages...</p>
+				<p class="text-gray-500 text-sm" dir="rtl">جاري تحميل الرسائل...</p>
 			</div>
 
 			<!-- Messages -->
@@ -172,7 +172,7 @@
 							]"
 						>
 							<div class="font-semibold opacity-75">
-								{{ message.quotedMessage.fromMe ? 'You' : getMessageSender(message.quotedMessage.from) }}
+								{{ message.quotedMessage.fromMe ? 'أنت' : getMessageSender(message.quotedMessage.from) }}
 							</div>
 							<div class="opacity-75 truncate">{{ message.quotedMessage.body }}</div>
 						</div>
@@ -186,7 +186,7 @@
 									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 								</svg>
-								<span class="ml-2 text-sm text-gray-600">Loading media...</span>
+								<span class="ml-2 text-sm text-gray-600" dir="rtl">جاري تحميل الوسائط...</span>
 							</div>
 							<!-- Media Content -->
 							<div v-else-if="message.mediaData">
@@ -194,7 +194,7 @@
 								<img 
 									v-if="message.mediaData.mimetype?.startsWith('image/')"
 									:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
-									:alt="message.mediaData.filename || 'Image'"
+									:alt="message.mediaData.filename || 'صورة'"
 									class="max-w-full rounded-lg cursor-pointer"
 									@click="openMediaViewer(message.mediaData)"
 								/>
@@ -218,12 +218,12 @@
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
 									</svg>
 									<div class="flex-1">
-										<p class="text-xs font-medium">{{ message.mediaData.filename || 'File' }}</p>
-										<p class="text-xs text-gray-500">{{ message.mediaData.mimetype || 'Unknown type' }}</p>
+										<p class="text-xs font-medium">{{ message.mediaData.filename || 'ملف' }}</p>
+										<p class="text-xs text-gray-500">{{ message.mediaData.mimetype || 'نوع غير معروف' }}</p>
 									</div>
 									<a 
-										:href="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
-										:download="message.mediaData.filename || 'file'"
+									:href="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+									:download="message.mediaData.filename || 'file'"
 										class="p-2 hover:bg-gray-200 rounded"
 									>
 										<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -241,7 +241,7 @@
 								<svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
 								</svg>
-								<span class="text-sm text-gray-700">Load Media</span>
+								<span class="text-sm text-gray-700" dir="rtl">تحميل الوسائط</span>
 							</button>
 						</div>
 						<!-- Text Message -->
@@ -270,7 +270,7 @@
 
 			<!-- Empty Messages State -->
 			<div v-else-if="chat && !loadingMessages" class="text-center py-8">
-				<p class="text-gray-500">No messages yet. Start the conversation!</p>
+				<p class="text-gray-500" dir="rtl">لا توجد رسائل بعد. ابدأ المحادثة!</p>
 			</div>
 		</div>
 
@@ -282,7 +282,7 @@
 						v-model="messageText"
 						@keydown.enter.exact.prevent="sendMessage"
 						@keydown.shift.enter="messageText += '\n'"
-						placeholder="Type a message..."
+						placeholder="اكتب رسالة..."
 						rows="1"
 						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none max-h-32 overflow-y-auto"
 						style="min-height: 40px; max-height: 120px;"
@@ -292,7 +292,7 @@
 					type="submit"
 					:disabled="!messageText.trim() || sending"
 					class="p-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-					title="Send message"
+					title="إرسال الرسالة"
 				>
 					<svg
 						v-if="!sending"

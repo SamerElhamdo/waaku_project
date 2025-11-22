@@ -1,7 +1,7 @@
 <template>
 	<div class="flex flex-col h-full bg-gray-50 border-r border-gray-200">
 		<!-- Chat List Header -->
-		<div class="bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-10">
+		<div class="bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-10" dir="rtl">
 			<div class="flex items-center space-x-3">
 				<button
 					v-if="onMobile && selectedChatId"
@@ -13,7 +13,7 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
 					</svg>
 				</button>
-				<h2 class="text-lg font-semibold text-gray-900">{{ sessionId }}</h2>
+				<h2 class="text-lg font-semibold text-gray-900">الجلسة: {{ sessionId || 'غير محددة' }}</h2>
 			</div>
 			<button
 				@click="refreshChats"
@@ -39,7 +39,7 @@
 				<input
 					v-model="searchQuery"
 					type="text"
-					placeholder="Search chats..."
+					placeholder="ابحث في المحادثات..."
 					class="w-full px-4 py-2 pl-10 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
 				/>
 				<svg class="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,7 +55,7 @@
 					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
 				</svg>
-				<p class="text-gray-500 text-sm">Loading chats...</p>
+				<p class="text-gray-500 text-sm">جاري تحميل المحادثات...</p>
 			</div>
 		</div>
 
@@ -66,7 +66,7 @@
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
 				</svg>
 				<p class="text-gray-500 text-sm">
-					{{ searchQuery ? 'No chats found' : 'No chats available' }}
+					{{ searchQuery ? 'لا توجد محادثات مطابقة' : 'لا توجد محادثات متاحة' }}
 				</p>
 			</div>
 		</div>
@@ -330,4 +330,3 @@ defineExpose({
 	loadChats
 })
 </script>
-

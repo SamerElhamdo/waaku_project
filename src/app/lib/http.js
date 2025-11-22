@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getApiBaseURL } from './baseUrl'
+import { getToken, clearAuth } from './auth'
 
 // Get API base URL and API key from environment variables
 // Prefer runtime origin so Docker/Nginx reverse proxies work without extra config
@@ -28,6 +29,12 @@ http.interceptors.request.use(
 		// Ensure API key is always present
 		if (API_KEY && !config.headers['X-API-Key']) {
 			config.headers['X-API-Key'] = API_KEY
+		}
+
+		// Add JWT bearer if available
+		const token = getToken()
+		if (token) {
+			config.headers.Authorization = `Bearer ${token}`
 		}
 
 		// Log request in development
@@ -62,7 +69,11 @@ http.interceptors.response.use(
 				const errorData = error.response.data
 				if (errorData?.code === 'MISSING_API_KEY' || errorData?.code === 'INVALID_API_KEY') {
 					console.error('🔑 [AUTH] API Key authentication failed:', errorData.message)
-					// Could redirect to login or show auth error
+				}
+				// Clear token and redirect to login on auth failure
+				clearAuth()
+				if (!location.pathname.startsWith('/login')) {
+					location.href = '/login'
 				}
 			}
 			console.error('Error data:', error.response.data)
