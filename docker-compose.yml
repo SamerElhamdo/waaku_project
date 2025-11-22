@@ -12,42 +12,49 @@ services:
     env_file:
       - .env
     ports:
-      - "4300:4300"
+      - "4300:4300"   # Expose internal port
     environment:
       NODE_ENV: production
       PORT: 4300
-      WAAKU_AUTH_STRATEGY: ${WAAKU_AUTH_STRATEGY:-remote}
+      ON_HOST: ${ON_HOST:-true}
+
+      # Redis
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      # API key configuration (server expects SHA-512 hash)
-      # Set WAAKU_API_KEY to sha512(raw_uuid_key_without_dashes)
-      # e.g., WAAKU_API_KEY=ab12... (128 hex chars)
+
+      # App runtime
+      WAAKU_RUNTIME: ${WAAKU_RUNTIME}
+      WAAKU_AUTH_STRATEGY: ${WAAKU_AUTH_STRATEGY:-remote}
+
+      # API + Frontend config
       FRONTEND_PORT: ${FRONTEND_PORT}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
       VITE_API_KEY: ${VITE_API_KEY}
-      WAAKU_API_KEY: ${WAAKU_API_KEY}
-      WAAKU_RUNTIME: ${WAAKU_RUNTIME}
       VITE_API_DEV_PORT: ${VITE_API_DEV_PORT}
       VITE_SOCKET_PORT: ${VITE_SOCKET_PORT}
-      # Host configuration: ON_HOST=true to listen on 0.0.0.0 (accessible from network)
-      # Set to false or omit for localhost only (127.0.0.1)
-      ON_HOST: ${ON_HOST:-false}
+
+      # API KEY (SHA-512)
+      WAAKU_API_KEY: ${WAAKU_API_KEY}
+
+      # Puppeteer
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+
     volumes:
-      # Persist WhatsApp session data (named volume persists across container restarts/rebuilds)
       - whatsapp_sessions:/usr/src/app/.wwebjs_auth
-      # Persist WhatsApp cache data (for faster chat loading)
       - whatsapp_cache:/usr/src/app/.wwebjs_cache
-      # Optionally mount logs
       - ./logs:/usr/src/app/logs
+
     restart: unless-stopped
     shm_size: '1gb'
+
     networks:
       - waaku-network
+
     depends_on:
       - redis
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4300"]
       interval: 30s
@@ -55,24 +62,6 @@ services:
       retries: 3
       start_period: 60s
 
-  # Optional: Add nginx reverse proxy
-  nginx:
-    image: nginx:alpine
-    platform: linux/amd64
-    container_name: waaku-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-    depends_on:
-      - app
-    restart: unless-stopped
-    networks:
-      - waaku-network
-    profiles:
-      - with-nginx
 
   redis:
     image: redis:7-alpine
@@ -83,6 +72,7 @@ services:
       - redis_data:/data
     networks:
       - waaku-network
+
 
 volumes:
   whatsapp_sessions:
