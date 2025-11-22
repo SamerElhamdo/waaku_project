@@ -5,7 +5,6 @@ const axios = require('axios')
 const fs = require('fs').promises
 const path = require('path')
 const { createClient } = require('redis')
-const { RedisStore } = require('wwebjs-redis')
 
 // Environment-aware Puppeteer runtime selection
 const RUNTIME = process.env.WAAKU_RUNTIME || 'linux' // 'linux' (default) | 'mac'
@@ -66,6 +65,40 @@ const REDIS_URL = process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 
 
 let redisClient = null
 
+class RedisSessionStore {
+	constructor({ client, prefix = 'waaku:' }) {
+		this.client = client
+		this.prefix = prefix
+	}
+
+	key(session) {
+		return `${this.prefix}${session}`
+	}
+
+	async sessionExists({ session }) {
+		const exists = await this.client.exists(this.key(session))
+		return exists === 1
+	}
+
+	async save({ session }) {
+		const zipPath = `${session}.zip`
+		const data = await fs.readFile(zipPath)
+		await this.client.set(this.key(session), data)
+	}
+
+	async extract({ session, path: outPath }) {
+		const data = await this.client.getBuffer(this.key(session))
+		if (!data) {
+			throw new Error(`Session ${session} not found in Redis`)
+		}
+		await fs.writeFile(outPath, data)
+	}
+
+	async delete({ session }) {
+		await this.client.del(this.key(session))
+	}
+}
+
 async function getRedisClient() {
 	if (redisClient) return redisClient
 	redisClient = createClient({ url: REDIS_URL })
@@ -81,7 +114,7 @@ async function buildAuthStrategy(sanitizedId) {
 	if (AUTH_STRATEGY === 'remote') {
 		try {
 			const client = await getRedisClient()
-			const store = new RedisStore({ client, prefix: `waaku:${sanitizedId}:` })
+			const store = new RedisSessionStore({ client, prefix: `waaku:${sanitizedId}:` })
 			return new RemoteAuth({
 				store,
 				clientId: sanitizedId,
