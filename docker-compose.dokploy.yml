@@ -55,4 +55,4 @@ volumes:
 networks:
   waaku-network:
   proxy:
-    external: true
+    name: proxy
