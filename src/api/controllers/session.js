@@ -6,17 +6,24 @@ const {
 	getSessionHealth,
 	getAllSessionsHealth,
 	deleteSession: removeSession,
+	exportSession,
+	importSession,
 } = require('../whatsapp/session')
 const { getIO } = require('../socket')
 
 // Create new session
 async function createSessionHandler(req, res) {
-	const { id } = req.body
-	if (!id) return res.status(400).json({ error: 'id required' })
-	createSession(id)
-	const io = getIO()
-	if (io) io.emit('sessions:update', listSessions())
-	res.json({ success: true, id })
+	try {
+		const { id } = req.body
+		if (!id) return res.status(400).json({ error: 'id required' })
+		await createSession(id)
+		const io = getIO()
+		if (io) io.emit('sessions:update', listSessions())
+		res.json({ success: true, id })
+	} catch (err) {
+		console.error('[CREATE] Error:', err)
+		res.status(500).json({ error: err.message || 'Failed to create session' })
+	}
 }
 
 // List sessions
@@ -80,7 +87,7 @@ async function restartSessionHandler(req, res) {
 		if (session.client) {
 			await session.client.destroy()
 		}
-		createSession(id)
+		await createSession(id)
 		res.json({
 			success: true,
 			message: 'Session restarted successfully',
@@ -110,6 +117,38 @@ async function deleteSessionHandler(req, res) {
 	}
 }
 
+// Export a session
+async function exportSessionHandler(req, res) {
+	try {
+		const id = req.params.id
+		const includeCache = req.query.cache !== 'false' // Default to true
+		
+		const exportData = await exportSession(id, includeCache === true)
+		res.json(exportData)
+	} catch (err) {
+		console.error('[EXPORT] Error:', err)
+		res.status(500).json({ error: err.message || 'Failed to export session' })
+	}
+}
+
+// Import a session
+async function importSessionHandler(req, res) {
+	try {
+		const exportData = req.body
+		const newSessionId = req.body.newSessionId || null
+		
+		if (!exportData || !exportData.auth) {
+			return res.status(400).json({ error: 'Invalid export data' })
+		}
+		
+		const result = await importSession(exportData, newSessionId)
+		res.json(result)
+	} catch (err) {
+		console.error('[IMPORT] Error:', err)
+		res.status(500).json({ error: err.message || 'Failed to import session' })
+	}
+}
+
 module.exports = {
 	createSessionHandler,
 	listSessionsHandler,
@@ -118,4 +157,6 @@ module.exports = {
 	getOneHealthHandler,
 	restartSessionHandler,
 	deleteSessionHandler,
+	exportSessionHandler,
+	importSessionHandler,
 }

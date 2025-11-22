@@ -13,6 +13,7 @@ const sessionRoutes = require('./routes/session')
 const messageRoutes = require('./routes/messages')
 const { validateApiKey, logApiAccess, rateLimiter, generateApiKey } = require('./middleware/auth')
 const { initSocketIO } = require('./socket')
+const { restoreSessions } = require('./whatsapp/session')
 
 const app = express()
 const server = http.createServer(app)
@@ -103,7 +104,29 @@ const io = initSocketIO(server)
 module.exports.io = io
 
 const port = Number(process.env.PORT || process.env.VITE_API_DEV_PORT || 4300)
-server.listen(port, () => console.log(`Server running at http://localhost:${port}`))
+
+// Restore saved sessions on startup (disabled by default - use export/import instead)
+// Set AUTO_RESTORE_SESSIONS=true to enable automatic restore
+const autoRestore = process.env.AUTO_RESTORE_SESSIONS === 'true'
+if (autoRestore) {
+	console.log('[STARTUP] Auto-restore enabled. Restoring saved sessions...')
+	restoreSessions().then(() => {
+		server.listen(port, () => {
+			console.log(`Server running at http://localhost:${port}`)
+			const { listSessions } = require('./whatsapp/session')
+			const sessions = listSessions()
+			if (sessions.length > 0) {
+				console.log(`[STARTUP] ${sessions.length} session(s) restored and initializing...`)
+			}
+		})
+	}).catch((error) => {
+		console.error('[STARTUP] Error restoring sessions:', error)
+		server.listen(port, () => console.log(`Server running at http://localhost:${port}`))
+	})
+} else {
+	console.log('[STARTUP] Auto-restore disabled. Use export/import to manage sessions.')
+	server.listen(port, () => console.log(`Server running at http://localhost:${port}`))
+}
 
 server.on('error', (err) => {
 	if (err && err.code === 'EADDRINUSE') {

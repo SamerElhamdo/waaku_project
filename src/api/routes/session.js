@@ -8,6 +8,8 @@ const {
 	getOneHealthHandler,
 	restartSessionHandler,
 	deleteSessionHandler,
+	exportSessionHandler,
+	importSessionHandler,
 } = require('../controllers/session')
 
 const router = express.Router()
@@ -38,5 +40,11 @@ router.post('/:id/restart', restartSessionHandler)
 
 // Delete a session
 router.delete('/:id', deleteSessionHandler)
+
+// Export a session (with optional cache)
+router.get('/:id/export', exportSessionHandler)
+
+// Import a session
+router.post('/import', importSessionHandler)
 
 module.exports = router

@@ -29,8 +29,10 @@ services:
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
     volumes:
-      # Persist WhatsApp session data
+      # Persist WhatsApp session data (named volume persists across container restarts/rebuilds)
       - whatsapp_sessions:/usr/src/app/.wwebjs_auth
+      # Persist WhatsApp cache data (for faster chat loading)
+      - whatsapp_cache:/usr/src/app/.wwebjs_cache
       # Optionally mount logs
       - ./logs:/usr/src/app/logs
     restart: unless-stopped
@@ -65,6 +67,8 @@ services:
 
 volumes:
   whatsapp_sessions:
+    driver: local
+  whatsapp_cache:
     driver: local
 
 networks:

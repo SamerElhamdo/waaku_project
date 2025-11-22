@@ -2,7 +2,7 @@
 FROM node:18-alpine
 
 # Install Chrome dependencies for whatsapp-web.js
-RUN apk add --no-cache \
+RUN apk add \
     chromium \
     nss \
     freetype \
@@ -27,21 +27,21 @@ COPY package*.json ./
 # Install all dependencies (including dev) for build
 RUN npm ci
 
-# Copy source code
+# Copy source code (exclude what's in .dockerignore)
 COPY . .
 
 # Build the frontend
 ARG VITE_API_KEY
 ARG VITE_API_BASE_URL
+# Add build timestamp to bust cache
+ARG BUILD_DATE=unknown
+ENV BUILD_DATE=$BUILD_DATE
 RUN VITE_API_KEY=$VITE_API_KEY \
     VITE_API_BASE_URL=$VITE_API_BASE_URL \
     npm run build
 
 # Prune devDependencies for a slimmer production image
 RUN npm prune --production && npm cache clean --force
-
-# Create directory for WhatsApp sessions
-RUN mkdir -p /usr/src/app/.wwebjs_auth
 
 # Expose port
 EXPOSE 4300
@@ -50,8 +50,11 @@ EXPOSE 4300
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nodejs -u 1001
 
-# Change ownership of app directory
-RUN chown -R nodejs:nodejs /usr/src/app
+# Clean and create empty directories for WhatsApp sessions and cache
+# This ensures fresh start on every build (sessions are managed via export/import)
+RUN rm -rf /usr/src/app/.wwebjs_auth /usr/src/app/.wwebjs_cache && \
+    mkdir -p /usr/src/app/.wwebjs_auth /usr/src/app/.wwebjs_cache && \
+    chown -R nodejs:nodejs /usr/src/app
 
 # Switch to non-root user
 USER nodejs
