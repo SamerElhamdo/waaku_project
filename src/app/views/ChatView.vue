@@ -21,6 +21,32 @@
 				</div>
 			</div>
 			<div class="flex items-center space-x-2">
+				<button
+					@click="exportSessionBundle"
+					:disabled="sessionExporting || !currentSessionId"
+					class="p-2 hover:bg-[#0a6b5f] rounded-lg transition-colors disabled:opacity-60"
+					title="Export session as JSON"
+				>
+					<svg
+						v-if="!sessionExporting"
+						class="w-6 h-6"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+					</svg>
+					<svg
+						v-else
+						class="w-6 h-6 animate-spin text-white"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+				</button>
 				<button @click="showSessionSwitcher = !showSessionSwitcher" class="p-2 hover:bg-[#0a6b5f] rounded-lg transition-colors" title="Switch Session">
 					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
@@ -118,6 +144,7 @@ const availableSessions = ref([])
 const isMobile = ref(window.innerWidth < 1024)
 const chatListRef = ref(null)
 const chatAreaRef = ref(null)
+const sessionExporting = ref(false)
 
 function handleResize() {
 	isMobile.value = window.innerWidth < 1024
@@ -192,5 +219,60 @@ function handleChatBack() {
 function handleMessageSent(data) {
 	console.log('Message sent:', data)
 }
-</script>
 
+function downloadJsonFile(filename, payload) {
+	const dataStr = JSON.stringify(payload, null, 2)
+	const dataBlob = new Blob([dataStr], { type: 'application/json' })
+	const url = URL.createObjectURL(dataBlob)
+	const link = document.createElement('a')
+	link.href = url
+	link.download = filename
+	document.body.appendChild(link)
+	link.click()
+	document.body.removeChild(link)
+	URL.revokeObjectURL(url)
+}
+
+async function buildSessionExportPayload(sessionId) {
+	const [sessionSnapshot, chats] = await Promise.all([
+		api.exportSession(sessionId, true),
+		api.getChats(sessionId)
+	])
+
+	const messages = {}
+	for (const chat of chats) {
+		try {
+			messages[chat.id] = await api.getChatMessages(sessionId, chat.id, 200)
+		} catch (err) {
+			messages[chat.id] = { error: api.getErrorMessage ? api.getErrorMessage(err) : err.message }
+		}
+	}
+
+	return {
+		meta: {
+			sessionId,
+			exportedAt: new Date().toISOString(),
+			chatCount: chats.length
+		},
+		session: sessionSnapshot,
+		chats,
+		messages
+	}
+}
+
+async function exportSessionBundle() {
+	if (!currentSessionId.value || sessionExporting.value) return
+
+	sessionExporting.value = true
+	try {
+		const payload = await buildSessionExportPayload(currentSessionId.value)
+		const filename = `waaku-session-${currentSessionId.value}-${new Date().toISOString().split('T')[0]}.json`
+		downloadJsonFile(filename, payload)
+	} catch (err) {
+		const fallbackMessage = api.getErrorMessage ? api.getErrorMessage(err) : 'Failed to export session'
+		alert(fallbackMessage)
+	} finally {
+		sessionExporting.value = false
+	}
+}
+</script>

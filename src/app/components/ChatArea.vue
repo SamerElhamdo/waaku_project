@@ -58,6 +58,78 @@
 			<p class="text-gray-500">Select a chat to start messaging</p>
 		</div>
 
+		<!-- Chat Meta / Actions -->
+		<div v-if="chat" class="bg-gradient-to-r from-green-50 via-white to-blue-50 border-b border-gray-200 px-4 py-3 flex flex-col gap-2">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="px-3 py-1 bg-white border border-green-200 text-green-700 rounded-full text-xs font-semibold">
+						{{ messages.length }} messages
+					</span>
+					<span class="px-3 py-1 bg-white border border-blue-200 text-blue-700 rounded-full text-xs font-semibold">
+						{{ mediaCount }} media
+					</span>
+					<span class="px-3 py-1 bg-white border border-gray-200 text-gray-700 rounded-full text-xs">
+						Last update: {{ lastUpdatedText }}
+					</span>
+				</div>
+				<div class="flex items-center gap-2">
+					<button
+						@click="refreshMessages"
+						:disabled="loadingMessages"
+						class="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-100 transition-colors disabled:opacity-60"
+					>
+						<span v-if="loadingMessages" class="flex items-center gap-2">
+							<svg class="w-4 h-4 animate-spin text-gray-600" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							Refreshing...
+						</span>
+						<span v-else class="flex items-center gap-2">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+							</svg>
+							Refresh
+						</span>
+					</button>
+					<button
+						@click="exportChatHistory"
+						:disabled="exportingChat"
+						class="px-3 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 transition-colors disabled:opacity-60"
+					>
+						<span v-if="exportingChat" class="flex items-center gap-2">
+							<svg class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							Exporting...
+						</span>
+						<span v-else class="flex items-center gap-2">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+							</svg>
+							Export chat
+						</span>
+					</button>
+					<button
+						@click="scrollToBottom"
+						class="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-100 transition-colors"
+					>
+						<span class="flex items-center gap-2">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7m14-5l-7 7-7-7"/>
+							</svg>
+							Latest
+						</span>
+					</button>
+				</div>
+			</div>
+			<div v-if="loadError" class="flex items-center justify-between bg-white border border-red-200 text-red-700 rounded-lg px-3 py-2">
+				<span class="text-sm">{{ loadError }}</span>
+				<button @click="refreshMessages" class="text-sm font-semibold underline">Retry</button>
+			</div>
+		</div>
+
 		<!-- Messages Area -->
 		<div
 			ref="messagesContainer"
@@ -118,46 +190,47 @@
 							</div>
 							<!-- Media Content -->
 							<div v-else-if="message.mediaData">
-							<!-- Image -->
-							<img 
-								v-if="message.mediaData.mimetype?.startsWith('image/')"
-								:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
-								:alt="message.mediaData.filename || 'Image'"
-								class="max-w-full rounded-lg cursor-pointer"
-								@click="openMediaViewer(message.mediaData)"
-							/>
-							<!-- Video -->
-							<video 
-								v-else-if="message.mediaData.mimetype?.startsWith('video/')"
-								:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
-								controls
-								class="max-w-full rounded-lg"
-							/>
-							<!-- Audio -->
-							<audio 
-								v-else-if="message.mediaData.mimetype?.startsWith('audio/')"
-								:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
-								controls
-								class="w-full"
-							/>
-							<!-- Other files -->
-							<div v-else class="flex items-center space-x-2 p-2 bg-gray-100 rounded">
-								<svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-								</svg>
-								<div class="flex-1">
-									<p class="text-xs font-medium">{{ message.mediaData.filename || 'File' }}</p>
-									<p class="text-xs text-gray-500">{{ message.mediaData.mimetype || 'Unknown type' }}</p>
-								</div>
-								<a 
-									:href="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
-									:download="message.mediaData.filename || 'file'"
-									class="p-2 hover:bg-gray-200 rounded"
-								>
-									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+								<!-- Image -->
+								<img 
+									v-if="message.mediaData.mimetype?.startsWith('image/')"
+									:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+									:alt="message.mediaData.filename || 'Image'"
+									class="max-w-full rounded-lg cursor-pointer"
+									@click="openMediaViewer(message.mediaData)"
+								/>
+								<!-- Video -->
+								<video 
+									v-else-if="message.mediaData.mimetype?.startsWith('video/')"
+									:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+									controls
+									class="max-w-full rounded-lg"
+								/>
+								<!-- Audio -->
+								<audio 
+									v-else-if="message.mediaData.mimetype?.startsWith('audio/')"
+									:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+									controls
+									class="w-full"
+								/>
+								<!-- Other files -->
+								<div v-else class="flex items-center space-x-2 p-2 bg-gray-100 rounded">
+									<svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
 									</svg>
-								</a>
+									<div class="flex-1">
+										<p class="text-xs font-medium">{{ message.mediaData.filename || 'File' }}</p>
+										<p class="text-xs text-gray-500">{{ message.mediaData.mimetype || 'Unknown type' }}</p>
+									</div>
+									<a 
+										:href="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+										:download="message.mediaData.filename || 'file'"
+										class="p-2 hover:bg-gray-200 rounded"
+									>
+										<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+										</svg>
+									</a>
+								</div>
 							</div>
 							<!-- Load Media Button -->
 							<button
@@ -270,7 +343,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue'
 import api from '../lib/api.js'
 import { on as onSocket, off as offSocket } from '../lib/socket.js'
 
@@ -297,6 +370,15 @@ const loadingMessages = ref(false)
 const sending = ref(false)
 const messagesContainer = ref(null)
 const mediaViewer = ref({ visible: false, src: '', type: '' })
+const loadError = ref('')
+const exportingChat = ref(false)
+
+const mediaCount = computed(() => messages.value.filter(m => m.hasMedia || m.mediaData).length)
+const lastUpdatedText = computed(() => {
+	if (!messages.value.length) return 'Waiting for new messages'
+	const lastMessage = messages.value[messages.value.length - 1]
+	return formatMessageTime(lastMessage.timestamp) || 'Just now'
+})
 
 function getChatInitials(chat) {
 	const name = chat.name || chat.contact?.name || '?'
@@ -405,6 +487,7 @@ async function loadMessages(forceRefresh = false) {
 	}
 
 	loadingMessages.value = true
+	loadError.value = ''
 	try {
 		// Always fetch fresh messages from server
 		const freshMessages = await api.getChatMessages(props.sessionId, props.chat.id, 100)
@@ -415,6 +498,7 @@ async function loadMessages(forceRefresh = false) {
 		scrollToBottom()
 	} catch (error) {
 		console.error('Error loading messages:', error)
+		loadError.value = api.getErrorMessage ? api.getErrorMessage(error) : 'Unable to load messages'
 		// Don't clear messages on error, keep existing ones
 		if (messages.value.length === 0) {
 			messages.value = []
@@ -558,10 +642,49 @@ onUnmounted(() => {
 	offSocket('message:received', handleMessageReceived)
 })
 
+function downloadJson(payload, filename) {
+	const dataStr = JSON.stringify(payload, null, 2)
+	const dataBlob = new Blob([dataStr], { type: 'application/json' })
+	const url = URL.createObjectURL(dataBlob)
+	const link = document.createElement('a')
+	link.href = url
+	link.download = filename
+	document.body.appendChild(link)
+	link.click()
+	document.body.removeChild(link)
+	URL.revokeObjectURL(url)
+}
+
+async function exportChatHistory() {
+	if (!props.chat || !props.sessionId || exportingChat.value) return
+
+	exportingChat.value = true
+	try {
+		const history = await api.getChatMessages(props.sessionId, props.chat.id, 300)
+		const payload = {
+			meta: {
+				sessionId: props.sessionId,
+				chatId: props.chat.id,
+				chatName: props.chat.name || props.chat.contact?.name || 'Unknown',
+				exportedAt: new Date().toISOString(),
+				messageCount: history?.length || 0
+			},
+			chat: props.chat,
+			messages: history || []
+		}
+		const filename = `waaku-chat-${props.chat.id}-${new Date().toISOString().split('T')[0]}.json`
+		downloadJson(payload, filename)
+	} catch (error) {
+		const message = api.getErrorMessage ? api.getErrorMessage(error) : 'Failed to export chat'
+		alert(message)
+	} finally {
+		exportingChat.value = false
+	}
+}
+
 // Expose refresh function
 defineExpose({
 	refreshMessages,
 	loadMessages
 })
 </script>
-
