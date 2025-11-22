@@ -55,4 +55,5 @@ volumes:
 networks:
   waaku-network:
   proxy:
-    name: proxy
+    external: true
+    name: ${TRAEFIK_NETWORK:-proxy}
