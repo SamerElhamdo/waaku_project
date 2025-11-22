@@ -1,0 +1,58 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        VITE_API_KEY: ${VITE_API_KEY}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://webtop.encryptosystem.com}
+    image: waaku-app:latest
+    container_name: waaku-app
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 4300
+      FRONTEND_PORT: 4300
+      WAAKU_AUTH_STRATEGY: ${WAAKU_AUTH_STRATEGY:-remote}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://webtop.encryptosystem.com}
+      ON_HOST: ${ON_HOST:-true}
+    ports:
+      - "4300:4300"
+    volumes:
+      - whatsapp_sessions:/usr/src/app/.wwebjs_auth
+      - whatsapp_cache:/usr/src/app/.wwebjs_cache
+      - ./logs:/usr/src/app/logs
+    networks:
+      - waaku-network
+      - proxy
+    depends_on:
+      - redis
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.waaku.rule: Host(`webtop.encryptosystem.com`)
+      traefik.http.routers.waaku.entrypoints: websecure
+      traefik.http.routers.waaku.tls: "true"
+      traefik.http.services.waaku.loadbalancer.server.port: "4300"
+
+  redis:
+    image: redis:7-alpine
+    container_name: waaku-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - waaku-network
+
+volumes:
+  whatsapp_sessions:
+  whatsapp_cache:
+  redis_data:
+
+networks:
+  waaku-network:
+  proxy:
+    external: true
