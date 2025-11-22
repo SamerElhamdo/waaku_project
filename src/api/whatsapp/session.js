@@ -87,7 +87,8 @@ class RedisSessionStore {
 	}
 
 	async extract({ session, path: outPath }) {
-		const data = await this.client.getBuffer(this.key(session))
+		// redis v4 لا يوفّر getBuffer مباشرة؛ استخدم sendCommand مع returnBuffers
+		const data = await this.client.sendCommand(['GET', this.key(session)], { returnBuffers: true })
 		if (!data) {
 			throw new Error(`Session ${session} not found in Redis`)
 		}
