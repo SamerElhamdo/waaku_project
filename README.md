@@ -79,6 +79,7 @@ Set these variables (see .env.example for all):
 - VITE_API_KEY=<raw UUIDv4 without dashes>
 - WAAKU_API_KEY=<sha512 hash of the raw key>
 - WAAKU_RUNTIME=mac (for macOS) or linux (for Docker/Linux)
+- ON_HOST=true (to listen on 0.0.0.0 for remote access) or false/omit (localhost only)
 - WEBHOOK_URL=<optional URL to receive message webhooks>
 - WEBHOOK_SECRET=<optional secret for webhook authentication>
 - WAAKU_CHROME_PATH=<optional custom Chrome path for macOS>

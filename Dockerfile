@@ -21,13 +21,14 @@ ENV NODE_OPTIONS=--max_old_space_size=512
 # Create app directory
 WORKDIR /usr/src/app
 
-# Copy package files
+# Copy package files first (for better layer caching)
 COPY package*.json ./
 
 # Install all dependencies (including dev) for build
 RUN npm ci
 
 # Copy source code (exclude what's in .dockerignore)
+# This will copy all files including the new router and views
 COPY . .
 
 # Build the frontend

@@ -453,11 +453,20 @@ async function deleteSession(id) {
 // Get all chats for a session
 async function getChats(sessionId) {
 	const s = getSession(sessionId)
-	if (!s || !s.ready || !s.client) {
-		throw new Error('Session not ready')
+	if (!s) {
+		throw new Error('Session not found')
+	}
+	
+	if (!s.ready || !s.client) {
+		throw new Error('Session not ready. Please wait for the session to connect.')
 	}
 
 	try {
+		// Check if client is still connected
+		if (!s.client.pupPage || s.client.pupPage.isClosed()) {
+			throw new Error('Session closed. Please restart the session.')
+		}
+		
 		const chats = await s.client.getChats()
 		// Map chats to a simpler format for the frontend
 		const formattedChats = await Promise.all(
@@ -503,19 +512,48 @@ async function getChats(sessionId) {
 // Get messages for a specific chat
 async function getChatMessages(sessionId, chatId, limit = 50) {
 	const s = getSession(sessionId)
-	if (!s || !s.ready || !s.client) {
-		throw new Error('Session not ready')
+	if (!s) {
+		throw new Error('Session not found')
+	}
+	
+	if (!s.ready || !s.client) {
+		throw new Error('Session not ready. Please wait for the session to connect.')
 	}
 
 	try {
+		// Check if client is still connected
+		if (!s.client.pupPage || s.client.pupPage.isClosed()) {
+			throw new Error('Session closed. Please restart the session.')
+		}
+		
 		const chat = await s.client.getChatById(chatId)
-		const messages = await chat.fetchMessages({ limit })
+		if (!chat) {
+			throw new Error('Chat not found')
+		}
+
+		// Fetch messages - fetchMessages returns messages from oldest to newest
+		// We want the most recent messages, so we fetch more and take the last N
+		const fetchLimit = Math.max(limit, 100) // Fetch more to ensure we get latest
+		const allMessages = await chat.fetchMessages({ limit: fetchLimit })
+		
+		console.log(`[${sessionId}] Fetched ${allMessages.length} messages for chat ${chatId}, requesting ${limit}`)
+		
+		// Get the last N messages (most recent)
+		const messages = allMessages.slice(-limit)
+		
+		console.log(`[${sessionId}] Returning ${messages.length} most recent messages`)
 
 		// Format messages for frontend
 		const formattedMessages = await Promise.all(
 			messages.map(async (msg) => {
 				const contact = msg.fromMe ? null : await msg.getContact()
 				const quotedMsg = msg.hasQuotedMsg ? await msg.getQuotedMessage() : null
+
+				// Handle media messages (lazy loading - don't download by default to avoid large payloads)
+				// Media will be downloaded on-demand when user views the message
+				let mediaData = null
+				// Skip media download for now - can be loaded on-demand via separate endpoint
+				// This prevents large base64 data from being sent in initial message load
 
 				return {
 					id: msg.id._serialized,
@@ -527,13 +565,15 @@ async function getChatMessages(sessionId, chatId, limit = 50) {
 					isFromMe: msg.fromMe || false,
 					hasMedia: msg.hasMedia || false,
 					mediaKey: msg.mediaKey,
+					mediaData: mediaData,
 					location: msg.location,
 					vCard: msg.vCard,
 					quotedMessage: quotedMsg ? {
 						id: quotedMsg.id._serialized,
 						body: quotedMsg.body,
 						from: quotedMsg.from,
-						timestamp: quotedMsg.timestamp
+						timestamp: quotedMsg.timestamp,
+						fromMe: quotedMsg.fromMe
 					} : null,
 					contact: contact ? {
 						name: contact.name || contact.pushname || contact.number,
@@ -543,10 +583,66 @@ async function getChatMessages(sessionId, chatId, limit = 50) {
 			})
 		)
 
-		// Reverse to show oldest first (chronological order)
-		return formattedMessages.reverse()
+		// Messages are already in chronological order (oldest to newest)
+		// Return as-is for proper display
+		return formattedMessages
 	} catch (error) {
 		console.error(`[${sessionId}] Error getting messages for chat ${chatId}:`, error)
+		// Provide more helpful error messages
+		if (error.message.includes('Session closed') || error.message.includes('Protocol error')) {
+			throw new Error('Session closed. Please restart the session.')
+		}
+		throw error
+	}
+}
+
+// Download media for a specific message
+async function downloadMessageMedia(sessionId, chatId, messageId) {
+	const s = getSession(sessionId)
+	if (!s) {
+		throw new Error('Session not found')
+	}
+	
+	if (!s.ready || !s.client) {
+		throw new Error('Session not ready. Please wait for the session to connect.')
+	}
+
+	try {
+		// Check if client is still connected
+		if (!s.client.pupPage || s.client.pupPage.isClosed()) {
+			throw new Error('Session closed. Please restart the session.')
+		}
+		
+		const chat = await s.client.getChatById(chatId)
+		if (!chat) {
+			throw new Error('Chat not found')
+		}
+
+		// Get the message
+		const messages = await chat.fetchMessages({ limit: 100 })
+		const message = messages.find(msg => msg.id._serialized === messageId)
+		
+		if (!message) {
+			throw new Error('Message not found')
+		}
+
+		if (!message.hasMedia) {
+			throw new Error('Message does not contain media')
+		}
+
+		// Download media
+		const media = await message.downloadMedia()
+		if (!media) {
+			throw new Error('Failed to download media')
+		}
+
+		return {
+			data: media.data, // base64
+			mimetype: media.mimetype,
+			filename: media.filename || null
+		}
+	} catch (error) {
+		console.error(`[${sessionId}] Error downloading media for message ${messageId}:`, error)
 		throw error
 	}
 }
@@ -651,14 +747,47 @@ async function exportSession(sessionId, includeCache = true) {
 		}
 
 		const sanitizedId = sanitizeClientId(sessionId)
-		const authDir = path.join(process.cwd(), '.wwebjs_auth', sanitizedId)
-		const cacheDir = path.join(process.cwd(), '.wwebjs_cache', sanitizedId)
+		
+		// Try multiple possible paths (Docker volume vs local)
+		const possibleAuthPaths = [
+			path.join('/usr/src/app/.wwebjs_auth', sanitizedId), // Docker volume path
+			path.join(process.cwd(), '.wwebjs_auth', sanitizedId), // Local path
+			path.join(process.cwd(), '..', '.wwebjs_auth', sanitizedId) // Alternative local path
+		]
+		
+		const possibleCachePaths = [
+			path.join('/usr/src/app/.wwebjs_cache', sanitizedId),
+			path.join(process.cwd(), '.wwebjs_cache', sanitizedId),
+			path.join(process.cwd(), '..', '.wwebjs_cache', sanitizedId)
+		]
 
-		// Check if session directory exists
-		try {
-			await fs.access(authDir)
-		} catch {
-			throw new Error('Session auth data not found')
+		// Find the correct auth directory
+		let authDir = null
+		let cacheDir = null
+		
+		for (let i = 0; i < possibleAuthPaths.length; i++) {
+			try {
+				await fs.access(possibleAuthPaths[i])
+				const entries = await fs.readdir(possibleAuthPaths[i])
+				// Check if directory has actual files (not just lock files)
+				const realFiles = entries.filter(e => !e.startsWith('.') && !e.endsWith('.lock'))
+				if (realFiles.length > 0) {
+					authDir = possibleAuthPaths[i]
+					cacheDir = possibleCachePaths[i]
+					break
+				}
+			} catch (error) {
+				// Continue to next path
+				continue
+			}
+		}
+
+		if (!authDir) {
+			// Check if session exists in memory but not on disk (newly created, not authenticated yet)
+			if (s && s.state === 'QR_CODE' || s.state === 'CONNECTING') {
+				throw new Error('Session is not authenticated yet. Please scan the QR code first.')
+			}
+			throw new Error(`Session auth data not found. Checked paths: ${possibleAuthPaths.join(', ')}. Make sure the session is authenticated.`)
 		}
 
 		const exportData = {
@@ -805,6 +934,7 @@ module.exports = {
 	getChats,
 	getChatMessages,
 	sendChatMessage,
+	downloadMessageMedia,
 	restoreSessions,
 	exportSession,
 	importSession

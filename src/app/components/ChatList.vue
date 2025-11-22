@@ -217,6 +217,9 @@ async function refreshChats() {
 	await loadChats()
 }
 
+// Debounce timer for refresh
+let refreshTimer = null
+
 // Socket event handlers for real-time updates
 function handleChatMessage(data) {
 	if (data.sessionId === props.sessionId) {
@@ -236,16 +239,26 @@ function handleChatMessage(data) {
 			const updatedChat = chats.value.splice(chatIndex, 1)[0]
 			chats.value.unshift(updatedChat)
 		} else {
-			// New chat, refresh the list
-			loadChats()
+			// New chat, refresh the list (debounced)
+			if (refreshTimer) {
+				clearTimeout(refreshTimer)
+			}
+			refreshTimer = setTimeout(() => {
+				loadChats()
+			}, 500)
 		}
 	}
 }
 
 function handleChatUpdate(data) {
 	if (data.sessionId === props.sessionId) {
-		// Refresh chats to get updated info
-		loadChats()
+		// Debounce refresh to avoid too many calls
+		if (refreshTimer) {
+			clearTimeout(refreshTimer)
+		}
+		refreshTimer = setTimeout(() => {
+			loadChats()
+		}, 300)
 	}
 }
 
@@ -270,8 +283,13 @@ function handleMessageReceived(data) {
 			const updatedChat = chats.value.splice(chatIndex, 1)[0]
 			chats.value.unshift(updatedChat)
 		} else {
-			// New chat, refresh
-			loadChats()
+			// New chat, refresh (debounced)
+			if (refreshTimer) {
+				clearTimeout(refreshTimer)
+			}
+			refreshTimer = setTimeout(() => {
+				loadChats()
+			}, 500)
 		}
 	}
 }

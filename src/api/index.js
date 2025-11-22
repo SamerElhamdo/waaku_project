@@ -105,14 +105,20 @@ module.exports.io = io
 
 const port = Number(process.env.PORT || process.env.VITE_API_DEV_PORT || 4300)
 
+// Host configuration: if ON_HOST=true, listen on 0.0.0.0 (accessible from network)
+// Otherwise, listen on localhost (127.0.0.1) for local access only
+const onHost = process.env.ON_HOST === 'true'
+const host = onHost ? '0.0.0.0' : 'localhost'
+
 // Restore saved sessions on startup (disabled by default - use export/import instead)
 // Set AUTO_RESTORE_SESSIONS=true to enable automatic restore
 const autoRestore = process.env.AUTO_RESTORE_SESSIONS === 'true'
 if (autoRestore) {
 	console.log('[STARTUP] Auto-restore enabled. Restoring saved sessions...')
 	restoreSessions().then(() => {
-		server.listen(port, () => {
-			console.log(`Server running at http://localhost:${port}`)
+		server.listen(port, host, () => {
+			const hostDisplay = onHost ? `0.0.0.0:${port} (accessible from network)` : `localhost:${port} (local only)`
+			console.log(`Server running at http://${hostDisplay}`)
 			const { listSessions } = require('./whatsapp/session')
 			const sessions = listSessions()
 			if (sessions.length > 0) {
@@ -121,11 +127,17 @@ if (autoRestore) {
 		})
 	}).catch((error) => {
 		console.error('[STARTUP] Error restoring sessions:', error)
-		server.listen(port, () => console.log(`Server running at http://localhost:${port}`))
+		server.listen(port, host, () => {
+			const hostDisplay = onHost ? `0.0.0.0:${port} (accessible from network)` : `localhost:${port} (local only)`
+			console.log(`Server running at http://${hostDisplay}`)
+		})
 	})
 } else {
 	console.log('[STARTUP] Auto-restore disabled. Use export/import to manage sessions.')
-	server.listen(port, () => console.log(`Server running at http://localhost:${port}`))
+	server.listen(port, host, () => {
+		const hostDisplay = onHost ? `0.0.0.0:${port} (accessible from network)` : `localhost:${port} (local only)`
+		console.log(`Server running at http://${hostDisplay}`)
+	})
 }
 
 server.on('error', (err) => {

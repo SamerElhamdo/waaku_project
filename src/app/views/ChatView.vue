@@ -123,45 +123,9 @@ function handleResize() {
 	isMobile.value = window.innerWidth < 1024
 }
 
-// Socket event handlers for real-time synchronization
-function handleChatMessage(data) {
-	if (data.sessionId === currentSessionId.value) {
-		// Refresh chat list to show updated last message
-		if (chatListRef.value) {
-			chatListRef.value.refreshChats()
-		}
-		// If this chat is currently open, refresh messages
-		if (selectedChat.value && selectedChat.value.id === data.chatId && chatAreaRef.value) {
-			chatAreaRef.value.refreshMessages()
-		}
-	}
-}
-
-function handleChatUpdate(data) {
-	if (data.sessionId === currentSessionId.value) {
-		// Refresh chat list
-		if (chatListRef.value) {
-			chatListRef.value.refreshChats()
-		}
-		// If this chat is currently open, refresh messages
-		if (selectedChat.value && selectedChat.value.id === data.chatId && chatAreaRef.value) {
-			chatAreaRef.value.refreshMessages()
-		}
-	}
-}
-
-function handleMessageReceived(data) {
-	if (data.sessionId === currentSessionId.value) {
-		// Refresh chat list to show new message in list
-		if (chatListRef.value) {
-			chatListRef.value.refreshChats()
-		}
-		// If this chat is currently open, refresh messages
-		if (selectedChat.value && data.chatId && selectedChat.value.id === data.chatId && chatAreaRef.value) {
-			chatAreaRef.value.refreshMessages()
-		}
-	}
-}
+// Socket event handlers are handled by child components (ChatList and ChatArea)
+// We don't need to duplicate the refresh logic here
+// The child components will handle their own updates via socket events
 
 // Session update handler
 function onSessionUpdate(list) {
@@ -177,19 +141,13 @@ onMounted(() => {
 	fetchSessions()
 	connectSocket()
 	
-	// Setup socket listeners
+	// Only listen to session updates (child components handle chat/message updates)
 	onSocket('sessions:update', onSessionUpdate)
-	onSocket('chat:message', handleChatMessage)
-	onSocket('chat:update', handleChatUpdate)
-	onSocket('message:received', handleMessageReceived)
 })
 
 onUnmounted(() => {
 	window.removeEventListener('resize', handleResize)
 	offSocket('sessions:update', onSessionUpdate)
-	offSocket('chat:message', handleChatMessage)
-	offSocket('chat:update', handleChatUpdate)
-	offSocket('message:received', handleMessageReceived)
 })
 
 async function fetchSessions() {

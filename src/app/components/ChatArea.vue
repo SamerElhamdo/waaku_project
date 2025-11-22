@@ -106,7 +106,73 @@
 						</div>
 
 						<!-- Message Body -->
-						<p class="text-sm whitespace-pre-wrap break-words">{{ message.body || 'Media' }}</p>
+						<!-- Media Display -->
+						<div v-if="message.hasMedia" class="mb-2">
+							<!-- Loading State -->
+							<div v-if="!message.mediaData && message.loadingMedia" class="flex items-center justify-center p-4 bg-gray-100 rounded-lg">
+								<svg class="animate-spin h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								<span class="ml-2 text-sm text-gray-600">Loading media...</span>
+							</div>
+							<!-- Media Content -->
+							<div v-else-if="message.mediaData">
+							<!-- Image -->
+							<img 
+								v-if="message.mediaData.mimetype?.startsWith('image/')"
+								:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+								:alt="message.mediaData.filename || 'Image'"
+								class="max-w-full rounded-lg cursor-pointer"
+								@click="openMediaViewer(message.mediaData)"
+							/>
+							<!-- Video -->
+							<video 
+								v-else-if="message.mediaData.mimetype?.startsWith('video/')"
+								:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+								controls
+								class="max-w-full rounded-lg"
+							/>
+							<!-- Audio -->
+							<audio 
+								v-else-if="message.mediaData.mimetype?.startsWith('audio/')"
+								:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+								controls
+								class="w-full"
+							/>
+							<!-- Other files -->
+							<div v-else class="flex items-center space-x-2 p-2 bg-gray-100 rounded">
+								<svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+								</svg>
+								<div class="flex-1">
+									<p class="text-xs font-medium">{{ message.mediaData.filename || 'File' }}</p>
+									<p class="text-xs text-gray-500">{{ message.mediaData.mimetype || 'Unknown type' }}</p>
+								</div>
+								<a 
+									:href="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+									:download="message.mediaData.filename || 'file'"
+									class="p-2 hover:bg-gray-200 rounded"
+								>
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+									</svg>
+								</a>
+							</div>
+							<!-- Load Media Button -->
+							<button
+								v-else
+								@click="loadMediaForMessage(message)"
+								class="flex items-center justify-center space-x-2 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors w-full"
+							>
+								<svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+								</svg>
+								<span class="text-sm text-gray-700">Load Media</span>
+							</button>
+						</div>
+						<!-- Text Message -->
+						<p v-if="message.body" class="text-sm whitespace-pre-wrap break-words">{{ message.body }}</p>
 
 						<!-- Message Time -->
 						<div
@@ -177,6 +243,29 @@
 				</button>
 			</form>
 		</div>
+
+		<!-- Media Viewer Modal -->
+		<div 
+			v-if="mediaViewer.visible"
+			@click="closeMediaViewer"
+			class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+		>
+			<button 
+				@click="closeMediaViewer"
+				class="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
+			>
+				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+				</svg>
+			</button>
+			<img 
+				v-if="mediaViewer.type === 'image'"
+				:src="mediaViewer.src"
+				alt="Media viewer"
+				class="max-w-full max-h-full object-contain"
+				@click.stop
+			/>
+		</div>
 	</div>
 </template>
 
@@ -207,6 +296,7 @@ const messageText = ref('')
 const loadingMessages = ref(false)
 const sending = ref(false)
 const messagesContainer = ref(null)
+const mediaViewer = ref({ visible: false, src: '', type: '' })
 
 function getChatInitials(chat) {
 	const name = chat.name || chat.contact?.name || '?'
@@ -266,26 +356,76 @@ function scrollToBottom() {
 	})
 }
 
-async function loadMessages() {
+function openMediaViewer(mediaData) {
+	if (mediaData && mediaData.mimetype?.startsWith('image/')) {
+		mediaViewer.value = {
+			visible: true,
+			src: `data:${mediaData.mimetype};base64,${mediaData.data}`,
+			type: 'image'
+		}
+	}
+}
+
+function closeMediaViewer() {
+	mediaViewer.value = { visible: false, src: '', type: '' }
+}
+
+async function loadMediaForMessage(message) {
+	if (!props.chat || !props.sessionId || message.mediaData || message.loadingMedia) {
+		return
+	}
+
+	// Mark as loading
+	const messageIndex = messages.value.findIndex(m => m.id === message.id)
+	if (messageIndex === -1) return
+
+	messages.value[messageIndex].loadingMedia = true
+
+	try {
+		const mediaData = await api.downloadMessageMedia(props.sessionId, props.chat.id, message.id)
+		messages.value[messageIndex].mediaData = mediaData
+	} catch (error) {
+		console.error('Error loading media:', error)
+		// Show error state
+		messages.value[messageIndex].mediaError = true
+	} finally {
+		messages.value[messageIndex].loadingMedia = false
+	}
+}
+
+async function loadMessages(forceRefresh = false) {
 	if (!props.chat || !props.sessionId) {
 		messages.value = []
 		return
 	}
 
+	// Prevent concurrent loads
+	if (loadingMessages.value && !forceRefresh) {
+		return
+	}
+
 	loadingMessages.value = true
 	try {
-		messages.value = await api.getChatMessages(props.sessionId, props.chat.id, 50)
+		// Always fetch fresh messages from server
+		const freshMessages = await api.getChatMessages(props.sessionId, props.chat.id, 100)
+		
+		// Always replace with fresh data to ensure consistency
+		messages.value = freshMessages || []
+		
 		scrollToBottom()
 	} catch (error) {
 		console.error('Error loading messages:', error)
-		messages.value = []
+		// Don't clear messages on error, keep existing ones
+		if (messages.value.length === 0) {
+			messages.value = []
+		}
 	} finally {
 		loadingMessages.value = false
 	}
 }
 
 async function refreshMessages() {
-	await loadMessages()
+	await loadMessages(true) // Force refresh
 }
 
 async function sendMessage() {
@@ -323,9 +463,27 @@ async function sendMessage() {
 function handleChatMessage(data) {
 	if (data.sessionId === props.sessionId && data.chatId === props.chat?.id) {
 		// Check if message already exists
-		const exists = messages.value.some(msg => msg.id === data.message.id)
+		const messageId = data.message?.id || data.messageId
+		if (!messageId) return
+		
+		const exists = messages.value.some(msg => msg.id === messageId)
 		if (!exists) {
-			messages.value.push(data.message)
+			// Add message and sort by timestamp
+			const newMessage = data.message || {
+				id: messageId,
+				body: data.body || '',
+				timestamp: data.timestamp || Math.floor(Date.now() / 1000),
+				isFromMe: data.isFromMe || false,
+				type: data.type || 'chat',
+				from: data.from
+			}
+			messages.value.push(newMessage)
+			// Sort by timestamp to maintain order
+			messages.value.sort((a, b) => {
+				const timeA = a.timestamp || 0
+				const timeB = b.timestamp || 0
+				return timeA - timeB
+			})
 			scrollToBottom()
 		}
 	}
@@ -333,36 +491,55 @@ function handleChatMessage(data) {
 
 function handleChatUpdate(data) {
 	if (data.sessionId === props.sessionId && data.chatId === props.chat?.id) {
-		// Refresh messages to get latest
-		loadMessages()
+		// Debounce refresh to avoid too many calls
+		if (refreshTimer) {
+			clearTimeout(refreshTimer)
+		}
+		refreshTimer = setTimeout(() => {
+			loadMessages(true)
+		}, 300)
 	}
 }
 
+// Debounce timer for refresh
+let refreshTimer = null
+
 function handleMessageReceived(data) {
 	if (data.sessionId === props.sessionId && data.chatId === props.chat?.id) {
-		// Check if message already exists
-		const messageId = data.messageId || `msg-${Date.now()}`
+		const messageId = data.messageId || data.message?.id || `msg-${Date.now()}`
 		const exists = messages.value.some(msg => msg.id === messageId)
 		
 		if (!exists) {
 			const newMessage = {
 				id: messageId,
-				body: data.body,
-				timestamp: data.timestamp || Math.floor(Date.now() / 1000),
+				body: data.body || data.message?.body || '',
+				timestamp: data.timestamp || data.message?.timestamp || Math.floor(Date.now() / 1000),
 				isFromMe: false,
-				type: 'chat',
-				from: data.from || data.contact?.number
+				type: data.type || 'chat',
+				from: data.from || data.contact?.number || data.message?.from,
+				hasMedia: data.hasMedia || data.message?.hasMedia || false,
+				mediaData: data.mediaData || data.message?.mediaData || null
 			}
 			messages.value.push(newMessage)
+			// Sort by timestamp
+			messages.value.sort((a, b) => {
+				const timeA = a.timestamp || 0
+				const timeB = b.timestamp || 0
+				return timeA - timeB
+			})
 			scrollToBottom()
 		}
 	}
 }
 
-// Watch for chat changes
-watch(() => props.chat, (newChat) => {
-	if (newChat) {
-		loadMessages()
+// Watch for chat changes - only reload when chat actually changes
+watch(() => props.chat?.id, (newChatId, oldChatId) => {
+	if (newChatId) {
+		// Only reload if it's a different chat
+		if (oldChatId !== newChatId) {
+			messages.value = [] // Clear old messages
+			loadMessages(true) // Force refresh for new chat
+		}
 	} else {
 		messages.value = []
 	}

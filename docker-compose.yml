@@ -26,6 +26,9 @@ services:
       WAAKU_RUNTIME: ${WAAKU_RUNTIME}
       VITE_API_DEV_PORT: ${VITE_API_DEV_PORT}
       VITE_SOCKET_PORT: ${VITE_SOCKET_PORT}
+      # Host configuration: ON_HOST=true to listen on 0.0.0.0 (accessible from network)
+      # Set to false or omit for localhost only (127.0.0.1)
+      ON_HOST: ${ON_HOST:-false}
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
     volumes:

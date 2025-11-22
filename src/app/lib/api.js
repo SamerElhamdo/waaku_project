@@ -178,6 +178,18 @@ export const sendChatMessage = async (sessionId, chatId, message) => {
 	return response.data
 }
 
+/**
+ * Download media for a specific message
+ * @param {string} sessionId - Session ID
+ * @param {string} chatId - Chat ID
+ * @param {string} messageId - Message ID
+ * @returns {Promise} Media data (base64)
+ */
+export const downloadMessageMedia = async (sessionId, chatId, messageId) => {
+	const response = await http.get(`/api/messages/${sessionId}/chats/${chatId}/messages/${messageId}/media`)
+	return response.data
+}
+
 // ===== AUTH (UI) =====
 
 /**
@@ -286,6 +298,7 @@ export default {
 	getChats,
 	getChatMessages,
 	sendChatMessage,
+	downloadMessageMedia,
 
 	// Auth
 	login,

@@ -1,6 +1,6 @@
 const express = require('express')
 const { validateNumberHandler, sendMessageHandler } = require('../controllers/message')
-const { getChats, getChatMessages, sendChatMessage, getSession } = require('../whatsapp/session')
+const { getChats, getChatMessages, sendChatMessage, downloadMessageMedia, getSession } = require('../whatsapp/session')
 
 const router = express.Router()
 
@@ -53,6 +53,21 @@ router.post('/:id/chats/:chatId/send', async (req, res) => {
 	} catch (error) {
 		console.error(`[API] Error sending message to chat ${req.params.chatId}:`, error)
 		res.status(500).json({ error: error.message || 'Failed to send message' })
+	}
+})
+
+// Download media for a specific message
+router.get('/:id/chats/:chatId/messages/:messageId/media', async (req, res) => {
+	try {
+		const sessionId = req.params.id
+		const chatId = req.params.chatId
+		const messageId = req.params.messageId
+		
+		const media = await downloadMessageMedia(sessionId, chatId, messageId)
+		res.json(media)
+	} catch (error) {
+		console.error(`[API] Error downloading media for message ${req.params.messageId}:`, error)
+		res.status(500).json({ error: error.message || 'Failed to download media' })
 	}
 })
 
