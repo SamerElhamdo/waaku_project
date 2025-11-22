@@ -1,9 +1,11 @@
-const { Client, LocalAuth } = require('whatsapp-web.js')
+const { Client, LocalAuth, RemoteAuth } = require('whatsapp-web.js')
 // Lazy socket accessor to avoid circular imports
 const { getIO } = require('../socket')
 const axios = require('axios')
 const fs = require('fs').promises
 const path = require('path')
+const { createClient } = require('redis')
+const { RedisStore } = require('wwebjs-redis')
 
 // Environment-aware Puppeteer runtime selection
 const RUNTIME = process.env.WAAKU_RUNTIME || 'linux' // 'linux' (default) | 'mac'
@@ -59,6 +61,38 @@ const sessions = {}
 // Webhook configuration
 const WEBHOOK_URL = process.env.WEBHOOK_URL
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
+const AUTH_STRATEGY = (process.env.WAAKU_AUTH_STRATEGY || 'local').toLowerCase()
+const REDIS_URL = process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || '6379'}`
+
+let redisClient = null
+
+async function getRedisClient() {
+	if (redisClient) return redisClient
+	redisClient = createClient({ url: REDIS_URL })
+	redisClient.on('error', (err) => {
+		console.error('[REDIS] Connection error:', err.message)
+	})
+	await redisClient.connect()
+	console.log(`[REDIS] Connected at ${REDIS_URL}`)
+	return redisClient
+}
+
+async function buildAuthStrategy(sanitizedId) {
+	if (AUTH_STRATEGY === 'remote') {
+		try {
+			const client = await getRedisClient()
+			const store = new RedisStore({ client, prefix: `waaku:${sanitizedId}:` })
+			return new RemoteAuth({
+				store,
+				clientId: sanitizedId,
+				backupSyncIntervalMs: 300000 // 5 minutes
+			})
+		} catch (error) {
+			console.error('[AUTH] RemoteAuth init failed, falling back to LocalAuth:', error.message)
+		}
+	}
+	return new LocalAuth({ clientId: sanitizedId })
+}
 
 // Function to send webhook notification
 async function sendWebhook(eventType, data) {
@@ -106,7 +140,7 @@ function sanitizeClientId(id) {
 	return sanitized.replace(/^[_-]+|[_-]+$/g, '') || 'default'
 }
 
-function createSession(id) {
+async function createSession(id) {
 	// Sanitize the clientId for LocalAuth (only alphanumeric, underscores, hyphens allowed)
 	// Important: Use sanitized ID as the session identifier for consistency with stored sessions
 	const sanitizedId = sanitizeClientId(id)
@@ -114,8 +148,10 @@ function createSession(id) {
 	// Use sanitized ID as the session key to ensure consistency with restored sessions
 	if (sessions[sanitizedId]) return sessions[sanitizedId]
 
+	const authStrategy = await buildAuthStrategy(sanitizedId)
+
 	const client = new Client({
-		authStrategy: new LocalAuth({ clientId: sanitizedId }),
+		authStrategy,
 		puppeteer: buildPuppeteerOptions(),
 	})
 
@@ -686,6 +722,11 @@ async function sendChatMessage(sessionId, chatId, messageText) {
 
 // Restore saved sessions on startup
 async function restoreSessions() {
+	if (AUTH_STRATEGY === 'remote') {
+		console.log('[RESTORE] RemoteAuth enabled; sessions will be loaded from Redis automatically.')
+		return
+	}
+
 	try {
 		const authDir = path.join(process.cwd(), '.wwebjs_auth')
 		
@@ -723,7 +764,7 @@ async function restoreSessions() {
 				// Note: The clientId is already sanitized (whatsapp-web.js creates directories with sanitized names)
 				// We'll use it directly as the session ID to ensure consistency
 				console.log(`[RESTORE] Restoring session: ${clientId}`)
-				createSession(clientId)
+				await createSession(clientId)
 				
 				// Add a flag to indicate this was restored (not newly created)
 				sessions[clientId].restored = true
@@ -741,6 +782,10 @@ async function restoreSessions() {
 // Export session (including auth data and cache)
 async function exportSession(sessionId, includeCache = true) {
 	try {
+		if (AUTH_STRATEGY === 'remote') {
+			throw new Error('Export is not supported when using RemoteAuth (sessions live in Redis).')
+		}
+
 		const s = getSession(sessionId)
 		if (!s) {
 			throw new Error('Session not found')
@@ -870,6 +915,10 @@ async function exportSession(sessionId, includeCache = true) {
 // Import session (including auth data and cache)
 async function importSession(exportData, newSessionId = null) {
 	try {
+		if (AUTH_STRATEGY === 'remote') {
+			throw new Error('Import is not supported when using RemoteAuth (sessions live in Redis).')
+		}
+
 		if (!exportData || !exportData.auth) {
 			throw new Error('Invalid export data')
 		}

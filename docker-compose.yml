@@ -16,6 +16,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4300
+      WAAKU_AUTH_STRATEGY: ${WAAKU_AUTH_STRATEGY:-remote}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       # API key configuration (server expects SHA-512 hash)
       # Set WAAKU_API_KEY to sha512(raw_uuid_key_without_dashes)
       # e.g., WAAKU_API_KEY=ab12... (128 hex chars)
@@ -42,6 +46,8 @@ services:
     shm_size: '1gb'
     networks:
       - waaku-network
+    depends_on:
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4300"]
       interval: 30s
@@ -68,10 +74,22 @@ services:
     profiles:
       - with-nginx
 
+  redis:
+    image: redis:7-alpine
+    container_name: waaku-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - waaku-network
+
 volumes:
   whatsapp_sessions:
     driver: local
   whatsapp_cache:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

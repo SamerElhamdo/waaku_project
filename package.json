@@ -28,12 +28,14 @@
 		"express": "^4.18.2",
 		"helmet": "^7.0.0",
 		"qrcode": "^1.5.1",
+		"redis": "^4.7.0",
 		"socket.io": "^4.7.5",
 		"socket.io-client": "^4.7.5",
 		"swagger-jsdoc": "^6.2.8",
 		"swagger-ui-express": "^5.0.0",
 		"vue-router": "^4.2.5",
-		"whatsapp-web.js": "^1.20.0"
+		"whatsapp-web.js": "^1.20.0",
+		"wwebjs-redis": "^1.0.0"
 	},
 	"devDependencies": {
 		"@vitejs/plugin-vue": "^5.0.4",
