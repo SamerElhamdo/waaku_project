@@ -109,6 +109,23 @@ function patchRemoteAuthPaths() {
 			await fse.mkdirp(this.userDataDir)
 		}
 	}
+
+	// Store immediately after auth (remove 60s delay) to avoid losing sessions on quick restart
+	proto.afterAuthReady = async function () {
+		try {
+			await this.storeRemoteSession({ emit: true })
+		} catch (err) {
+			console.warn('[RemoteAuth] Initial store failed:', err?.message || err)
+		}
+		const self = this
+		this.backupSync = setInterval(async function () {
+			try {
+				await self.storeRemoteSession()
+			} catch (err) {
+				console.warn('[RemoteAuth] Periodic store failed:', err?.message || err)
+			}
+		}, this.backupSyncIntervalMs)
+	}
 }
 
 patchRemoteAuthPaths()
