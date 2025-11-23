@@ -439,9 +439,16 @@
 					اختر جهات الاتصال أو المحادثات المراد التحويل إليها (يمكن اختيار أكثر من جهة).
 				</p>
 
-				<div class="max-h-64 overflow-y-auto space-y-2 border rounded-lg p-2">
+				<div class="space-y-2">
+					<input
+						v-model="forwardSearch"
+						type="text"
+						placeholder="بحث بالاسم أو الرقم..."
+						class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+					/>
+					<div class="max-h-64 overflow-y-auto space-y-2 border rounded-lg p-2">
 					<button
-						v-for="chatItem in availableChats"
+						v-for="chatItem in filteredForwardChats"
 						:key="chatItem.id"
 						type="button"
 						@click="toggleForwardTarget(chatItem.id)"
@@ -455,7 +462,10 @@
 						<span v-if="forwardTargets.includes(chatItem.id)" class="text-green-600 text-xs font-semibold">محدد</span>
 					</button>
 
-					<div v-if="!availableChats || !availableChats.length" class="text-center text-gray-500 text-sm py-4">
+					<div v-if="forwardLoading" class="text-center text-gray-500 text-sm py-4">
+						جاري تحميل المحادثات...
+					</div>
+					<div v-else-if="!filteredForwardChats.length" class="text-center text-gray-500 text-sm py-4">
 						لا توجد محادثات متاحة
 					</div>
 				</div>
@@ -469,9 +479,10 @@
 					</button>
 					<button
 						@click="confirmForward"
-						:disabled="!forwardTargets.length"
+						:disabled="!forwardTargets.length || forwardSending"
 						class="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
 					>
+						<span v-if="forwardSending" class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full align-middle mr-2"></span>
 						تحويل ({{ forwardTargets.length }})
 					</button>
 				</div>
@@ -590,7 +601,7 @@ const props = defineProps({
 	}
 })
 
-const emit = defineEmits(['back', 'message-sent', 'forward-send'])
+const emit = defineEmits(['back', 'message-sent'])
 
 const messages = ref([])
 const messageText = ref('')
@@ -616,6 +627,10 @@ const copiedMessageId = ref('')
 const forwardModal = ref(false)
 const forwardTargets = ref([])
 const forwardMessagePayload = ref(null)
+const forwardChats = ref([])
+const forwardLoading = ref(false)
+const forwardSending = ref(false)
+const forwardSearch = ref('')
 
 const mediaCount = computed(() => messages.value.filter(m => m.hasMedia || m.mediaData).length)
 const lastUpdatedText = computed(() => {
@@ -624,6 +639,16 @@ const lastUpdatedText = computed(() => {
 	return formatMessageTime(lastMessage.timestamp) || 'Just now'
 })
 const actionMenuId = ref('')
+const filteredForwardChats = computed(() => {
+	const source = (availableChats && availableChats.length) ? availableChats : forwardChats.value
+	if (!forwardSearch.value.trim()) return source
+	const term = forwardSearch.value.toLowerCase()
+	return source.filter(c => {
+		const name = (c.name || c.contact?.name || '').toLowerCase()
+		const number = (c.contact?.number || c.id || '').toLowerCase()
+		return name.includes(term) || number.includes(term)
+	})
+})
 
 function getChatInitials(chat) {
 	const name = chat.name || chat.contact?.name || '?'
@@ -908,7 +933,13 @@ function forwardMessage(message) {
 	closeActionMenu()
 	forwardMessagePayload.value = message
 	forwardTargets.value = []
-	forwardModal.value = true
+	if (!forwardChats.value.length && (!props.availableChats || !props.availableChats.length)) {
+		loadForwardChats().finally(() => {
+			forwardModal.value = true
+		})
+	} else {
+		forwardModal.value = true
+	}
 }
 
 function toggleForwardTarget(chatId) {
@@ -925,13 +956,29 @@ function confirmForward() {
 		forwardModal.value = false
 		return
 	}
-	emit('forward-send', {
-		message: forwardMessagePayload.value,
-		targets: [...forwardTargets.value]
-	})
-	forwardModal.value = false
-	forwardTargets.value = []
-	forwardMessagePayload.value = null
+		forwardSending.value = true
+		const text = forwardMessagePayload.value.body || ''
+		const tasks = forwardTargets.value.map(chatId => api.sendChatMessage(props.sessionId, chatId, text))
+		Promise.allSettled(tasks).finally(() => {
+			forwardSending.value = false
+			forwardModal.value = false
+			forwardTargets.value = []
+			forwardMessagePayload.value = null
+		})
+	}
+
+async function loadForwardChats() {
+	if (forwardLoading.value) return
+	forwardLoading.value = true
+	try {
+		const chats = await api.getChats(props.sessionId)
+		forwardChats.value = chats || []
+	} catch (err) {
+		console.error('Failed to load chats for forward', err)
+		forwardChats.value = []
+	} finally {
+		forwardLoading.value = false
+	}
 }
 
 async function loadMediaForMessage(message, auto = false) {
