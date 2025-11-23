@@ -640,7 +640,7 @@ const lastUpdatedText = computed(() => {
 })
 const actionMenuId = ref('')
 const filteredForwardChats = computed(() => {
-	const source = (availableChats && availableChats.length) ? availableChats : forwardChats.value
+	const source = (props.availableChats && props.availableChats.length) ? props.availableChats : forwardChats.value
 	if (!forwardSearch.value.trim()) return source
 	const term = forwardSearch.value.toLowerCase()
 	return source.filter(c => {
@@ -1169,6 +1169,17 @@ watch(
 			contactPhone.value = newChat.contact?.number || ''
 		}
 	}
+)
+
+// Sync provided chats (from chat list view) into local forwardChats as a fallback
+watch(
+	() => props.availableChats,
+	(newVal) => {
+		if (Array.isArray(newVal) && newVal.length) {
+			forwardChats.value = newVal
+		}
+	},
+	{ immediate: true }
 )
 
 // Setup socket listeners
