@@ -47,6 +47,16 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
 					</svg>
 				</button>
+				<button
+					v-if="chat?.contact?.number || chat?.name"
+					@click="openContactModal"
+					class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+					title="حفظ جهة الاتصال"
+				>
+					<svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+					</svg>
+				</button>
 			</div>
 		</div>
 
@@ -150,6 +160,7 @@
 				<div
 					v-for="(message, index) in messages"
 					:key="message.id"
+					:ref="el => setMessageRef(el, message)"
 					:class="[
 						'flex',
 						message.isFromMe ? 'justify-end' : 'justify-start'
@@ -206,12 +217,42 @@
 									class="max-w-full rounded-lg"
 								/>
 								<!-- Audio -->
-								<audio 
+								<div
 									v-else-if="message.mediaData.mimetype?.startsWith('audio/')"
-									:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
-									controls
-									class="w-full"
-								/>
+									class="w-full flex items-center gap-3 bg-gray-100 rounded-lg px-3 py-2"
+								>
+									<audio
+										:ref="el => registerAudioRef(el, message.id)"
+										:src="`data:${message.mediaData.mimetype};base64,${message.mediaData.data}`"
+										class="hidden"
+										@timeupdate="updateAudioProgress(message.id)"
+										@loadedmetadata="updateAudioProgress(message.id)"
+										@ended="onAudioEnded(message.id)"
+									/>
+									<button
+										@click="toggleAudio(message.id)"
+										class="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center border border-gray-200"
+									>
+										<svg v-if="audioStates[message.id]?.playing" class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+										</svg>
+										<svg v-else class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-5.197-3.03A1 1 0 008 9.03v5.94a1 1 0 001.555.832l5.197-3.03a1 1 0 000-1.664z"/>
+										</svg>
+									</button>
+									<div class="flex-1">
+										<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+											<div
+												class="h-full bg-green-500"
+												:style="{ width: audioProgressPercent(message.id) + '%' }"
+											></div>
+										</div>
+										<div class="flex justify-between text-xs text-gray-600 mt-1">
+											<span>{{ formatAudioTime(audioStates[message.id]?.current || 0) }}</span>
+											<span>{{ formatAudioTime(audioStates[message.id]?.duration || 0) }}</span>
+										</div>
+									</div>
+								</div>
 								<!-- Other files -->
 								<div v-else class="flex items-center space-x-2 p-2 bg-gray-100 rounded">
 									<svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -339,6 +380,92 @@
 				@click.stop
 			/>
 		</div>
+
+		<!-- Contact Modal -->
+		<div
+			v-if="contactModal"
+			class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+		>
+			<div class="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4" dir="rtl">
+				<div class="flex items-center justify-between">
+					<h3 class="text-lg font-semibold text-gray-900">حفظ جهة الاتصال</h3>
+					<button @click="contactModal = false" class="text-gray-500 hover:text-gray-700">
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<div class="space-y-3">
+					<div>
+						<label class="block text-sm text-gray-600 mb-1">رقم الهاتف</label>
+						<input
+							v-model="contactPhone"
+							type="text"
+							class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+							placeholder="مثال: 9665xxxxxxx"
+						/>
+					</div>
+					<div class="flex gap-3">
+						<div class="flex-1">
+							<label class="block text-sm text-gray-600 mb-1">الاسم الأول</label>
+							<input
+								v-model="contactFirstName"
+								type="text"
+								class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+								placeholder="الاسم الأول"
+							/>
+						</div>
+						<div class="flex-1">
+							<label class="block text-sm text-gray-600 mb-1">الاسم الأخير (اختياري)</label>
+							<input
+								v-model="contactLastName"
+								type="text"
+								class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+								placeholder="الاسم الأخير"
+							/>
+						</div>
+					</div>
+
+					<div v-if="contactError" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+						{{ contactError }}
+					</div>
+				</div>
+
+				<div class="flex items-center justify-end gap-3 pt-2">
+					<button
+						@click="contactModal = false"
+						class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+					>
+						إلغاء
+					</button>
+					<button
+						@click="unblockContactHandler"
+						:disabled="contactUnblocking || contactSaving || contactBlocking"
+						class="px-4 py-2 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60"
+					>
+						<span v-if="contactUnblocking" class="animate-spin inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full align-middle"></span>
+						<span v-else>فك الحظر</span>
+					</button>
+					<button
+						@click="blockContactHandler"
+						:disabled="contactBlocking || contactSaving || contactUnblocking"
+						class="px-4 py-2 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-60"
+					>
+						<span v-if="contactBlocking" class="animate-spin inline-block w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full align-middle"></span>
+						<span v-else>حظر</span>
+					</button>
+					<button
+						@click="saveContactHandler"
+						:disabled="contactSaving || contactBlocking || contactUnblocking"
+						class="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-60"
+					>
+						<span v-if="contactSaving" class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full align-middle"></span>
+						<span v-else>حفظ</span>
+					</button>
+				</div>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -370,8 +497,20 @@ const loadingMessages = ref(false)
 const sending = ref(false)
 const messagesContainer = ref(null)
 const mediaViewer = ref({ visible: false, src: '', type: '' })
+const mediaObserver = ref(null)
 const loadError = ref('')
 const exportingChat = ref(false)
+const audioRefs = ref({})
+const audioStates = ref({})
+const contactModal = ref(false)
+const contactFirstName = ref('')
+const contactLastName = ref('')
+const contactPhone = ref('')
+const contactSaving = ref(false)
+const contactError = ref('')
+const contactBlocking = ref(false)
+const contactUnblocking = ref(false)
+const messageElementMap = new Map()
 
 const mediaCount = computed(() => messages.value.filter(m => m.hasMedia || m.mediaData).length)
 const lastUpdatedText = computed(() => {
@@ -452,7 +591,184 @@ function closeMediaViewer() {
 	mediaViewer.value = { visible: false, src: '', type: '' }
 }
 
-async function loadMediaForMessage(message) {
+function openContactModal() {
+	contactError.value = ''
+	contactSaving.value = false
+	contactBlocking.value = false
+	contactUnblocking.value = false
+	contactFirstName.value = props.chat?.name || props.chat?.contact?.name || ''
+	contactLastName.value = ''
+	contactPhone.value = props.chat?.contact?.number || ''
+	contactModal.value = true
+}
+
+async function saveContactHandler() {
+	contactError.value = ''
+	if (!contactPhone.value.trim() || !contactFirstName.value.trim()) {
+		contactError.value = 'رقم الهاتف والاسم مطلوبان'
+		return
+	}
+	contactSaving.value = true
+	try {
+		await api.saveContact({
+			sessionId: props.sessionId,
+			phone: contactPhone.value.trim(),
+			firstName: contactFirstName.value.trim(),
+			lastName: contactLastName.value.trim(),
+			syncToAddressbook: true
+		})
+		contactModal.value = false
+	} catch (err) {
+		contactError.value = api.getErrorMessage ? api.getErrorMessage(err) : 'تعذر حفظ جهة الاتصال'
+	} finally {
+		contactSaving.value = false
+	}
+}
+
+async function blockContactHandler() {
+	contactError.value = ''
+	if (!contactPhone.value.trim()) {
+		contactError.value = 'رقم الهاتف مطلوب للحظر'
+		return
+	}
+	contactBlocking.value = true
+	try {
+		await api.blockContact({ sessionId: props.sessionId, phone: contactPhone.value.trim() })
+		contactModal.value = false
+	} catch (err) {
+		contactError.value = api.getErrorMessage ? api.getErrorMessage(err) : 'تعذر حظر جهة الاتصال'
+	} finally {
+		contactBlocking.value = false
+	}
+}
+
+async function unblockContactHandler() {
+	contactError.value = ''
+	if (!contactPhone.value.trim()) {
+		contactError.value = 'رقم الهاتف مطلوب لفك الحظر'
+		return
+	}
+	contactUnblocking.value = true
+	try {
+		await api.unblockContact({ sessionId: props.sessionId, phone: contactPhone.value.trim() })
+		contactModal.value = false
+	} catch (err) {
+		contactError.value = api.getErrorMessage ? api.getErrorMessage(err) : 'تعذر فك الحظر'
+	} finally {
+		contactUnblocking.value = false
+	}
+}
+
+function setupMediaObserver() {
+	if (mediaObserver.value || typeof IntersectionObserver === 'undefined') return
+	mediaObserver.value = new IntersectionObserver(
+		(entries) => {
+			entries.forEach((entry) => {
+				if (entry.isIntersecting) {
+					const id = entry.target.dataset.messageId
+					if (id) {
+						const msg = messages.value.find((m) => m.id === id)
+						if (msg && msg.hasMedia && !msg.mediaData) {
+							loadMediaForMessage(msg, true)
+						}
+					}
+					mediaObserver.value.unobserve(entry.target)
+				}
+			})
+		},
+		{
+			root: messagesContainer.value || null,
+			rootMargin: '200px',
+			threshold: 0.1
+		}
+	)
+}
+
+function setMessageRef(el, message) {
+	if (!message?.hasMedia) return
+	if (!el) {
+		const existing = messageElementMap.get(message.id)
+		if (existing && mediaObserver.value) {
+			mediaObserver.value.unobserve(existing)
+		}
+		messageElementMap.delete(message.id)
+		return
+	}
+	setupMediaObserver()
+	el.dataset.messageId = message.id
+	messageElementMap.set(message.id, el)
+	if (mediaObserver.value && !message.mediaData) {
+		mediaObserver.value.observe(el)
+	}
+}
+
+function registerAudioRef(el, id) {
+	if (el) {
+		audioRefs.value[id] = el
+	} else {
+		delete audioRefs.value[id]
+	}
+}
+
+function pauseAllAudio(exceptId = null) {
+	Object.entries(audioRefs.value).forEach(([key, audio]) => {
+		if (key !== String(exceptId) && audio && !audio.paused) {
+			audio.pause()
+		}
+		if (key !== String(exceptId)) {
+			audioStates.value[key] = { ...(audioStates.value[key] || {}), playing: false }
+		}
+	})
+}
+
+function toggleAudio(id) {
+	const audio = audioRefs.value[id]
+	if (!audio) return
+	if (!audio.paused) {
+		audio.pause()
+		audioStates.value[id] = { ...(audioStates.value[id] || {}), playing: false }
+		return
+	}
+	pauseAllAudio(id)
+	audio.play()
+	audioStates.value[id] = { ...(audioStates.value[id] || {}), playing: true }
+}
+
+function updateAudioProgress(id) {
+	const audio = audioRefs.value[id]
+	if (!audio) return
+	audioStates.value[id] = {
+		duration: audio.duration || 0,
+		current: audio.currentTime || 0,
+		playing: !audio.paused
+	}
+}
+
+function onAudioEnded(id) {
+	const audio = audioRefs.value[id]
+	if (audio) {
+		audioStates.value[id] = {
+			duration: audio.duration || audioStates.value[id]?.duration || 0,
+			current: audio.duration || 0,
+			playing: false
+		}
+	}
+}
+
+function audioProgressPercent(id) {
+	const state = audioStates.value[id]
+	if (!state || !state.duration) return 0
+	return Math.min(100, Math.round((state.current / state.duration) * 100))
+}
+
+function formatAudioTime(seconds) {
+	if (!seconds || Number.isNaN(seconds)) return '0:00'
+	const mins = Math.floor(seconds / 60)
+	const secs = Math.floor(seconds % 60)
+	return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+async function loadMediaForMessage(message, auto = false) {
 	if (!props.chat || !props.sessionId || message.mediaData || message.loadingMedia) {
 		return
 	}
@@ -470,6 +786,9 @@ async function loadMediaForMessage(message) {
 		console.error('Error loading media:', error)
 		// Show error state
 		messages.value[messageIndex].mediaError = true
+		if (!auto) {
+			alert('تعذر تحميل الوسائط. حاول مرة أخرى.')
+		}
 	} finally {
 		messages.value[messageIndex].loadingMedia = false
 	}
@@ -629,17 +948,30 @@ watch(() => props.chat?.id, (newChatId, oldChatId) => {
 	}
 }, { immediate: true })
 
+watch(
+	() => props.chat,
+	(newChat) => {
+		if (newChat) {
+			contactFirstName.value = newChat.name || newChat.contact?.name || ''
+			contactPhone.value = newChat.contact?.number || ''
+		}
+	}
+)
+
 // Setup socket listeners
 onMounted(() => {
 	onSocket('chat:message', handleChatMessage)
 	onSocket('chat:update', handleChatUpdate)
 	onSocket('message:received', handleMessageReceived)
+	setupMediaObserver()
 })
 
 onUnmounted(() => {
 	offSocket('chat:message', handleChatMessage)
 	offSocket('chat:update', handleChatUpdate)
 	offSocket('message:received', handleMessageReceived)
+	if (mediaObserver.value) mediaObserver.value.disconnect()
+	pauseAllAudio()
 })
 
 function downloadJson(payload, filename) {

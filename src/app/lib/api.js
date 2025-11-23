@@ -149,6 +149,28 @@ export const sendChatMessage = async (sessionId, chatId, message) => {
 	return response.data
 }
 
+// ===== CONTACTS =====
+export const saveContact = async ({ sessionId, phone, firstName, lastName = '', syncToAddressbook = true }) => {
+	const response = await http.post('/api/contacts', {
+		sessionId,
+		phone,
+		firstName,
+		lastName,
+		syncToAddressbook
+	})
+	return response.data
+}
+
+export const blockContact = async ({ sessionId, phone }) => {
+	const response = await http.post('/api/contacts/block', { sessionId, phone })
+	return response.data
+}
+
+export const unblockContact = async ({ sessionId, phone }) => {
+	const response = await http.post('/api/contacts/unblock', { sessionId, phone })
+	return response.data
+}
+
 /**
  * Download media for a specific message
  * @param {string} sessionId - Session ID
@@ -268,6 +290,9 @@ export default {
 	getChatMessages,
 	sendChatMessage,
 	downloadMessageMedia,
+	saveContact,
+	blockContact,
+	unblockContact,
 
 	// Auth
 	login,

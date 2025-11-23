@@ -11,6 +11,7 @@ const swaggerUi = require('swagger-ui-express')
 const swaggerSpecs = require('./swagger')
 const sessionRoutes = require('./routes/session')
 const messageRoutes = require('./routes/messages')
+const contactRoutes = require('./routes/contacts')
 const { validateApiKey, logApiAccess, rateLimiter } = require('./middleware/auth')
 const { requireAuth, requireRole } = require('./middleware/tokenAuth')
 const { initSocketIO } = require('./socket')
@@ -122,6 +123,7 @@ app.get('/auth/me', requireAuth, (req, res) => {
 app.use('/api', validateApiKey, requireAuth)
 app.use('/api/sessions', sessionRoutes)
 app.use('/api/messages', messageRoutes)
+app.use('/api/contacts', contactRoutes)
 
 // Serve built frontend (Vite dist) in production
 const frontendDir = path.resolve(__dirname, '../../dist')

@@ -1148,6 +1148,46 @@ async function importSession(exportData, newSessionId = null) {
 	}
 }
 
+async function saveContact(sessionId, { phone, firstName, lastName = '', syncToAddressbook = true }) {
+	const s = getSession(sessionId)
+	if (!s || !s.ready || !s.client) {
+		throw new Error('Session not ready')
+	}
+	if (!phone || !firstName) {
+		throw new Error('phone and firstName are required')
+	}
+	await s.client.saveOrEditAddressbookContact(String(phone), String(firstName), String(lastName), syncToAddressbook)
+	return { success: true }
+}
+
+async function blockContact(sessionId, phone) {
+	const s = getSession(sessionId)
+	if (!s || !s.ready || !s.client) {
+		throw new Error('Session not ready')
+	}
+	const contactId = phone.includes('@') ? phone : `${phone}@c.us`
+	const contact = await s.client.getContactById(contactId)
+	if (!contact || !contact.block) {
+		throw new Error('Contact not found or block not supported')
+	}
+	await contact.block()
+	return { success: true }
+}
+
+async function unblockContact(sessionId, phone) {
+	const s = getSession(sessionId)
+	if (!s || !s.ready || !s.client) {
+		throw new Error('Session not ready')
+	}
+	const contactId = phone.includes('@') ? phone : `${phone}@c.us`
+	const contact = await s.client.getContactById(contactId)
+	if (!contact || !contact.unblock) {
+		throw new Error('Contact not found or unblock not supported')
+	}
+	await contact.unblock()
+	return { success: true }
+}
+
 module.exports = { 
 	createSession, 
 	listSessions, 
@@ -1161,5 +1201,8 @@ module.exports = {
 	downloadMessageMedia,
 	restoreSessions,
 	exportSession,
-	importSession
+	importSession,
+	saveContact,
+	blockContact,
+	unblockContact
 }
