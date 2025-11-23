@@ -4,7 +4,11 @@ const { getIO } = require('../socket')
 const axios = require('axios')
 const fs = require('fs').promises
 const path = require('path')
+const os = require('os')
 const { createClient } = require('redis')
+const fse = require('fs-extra')
+const archiver = require('archiver')
+const unzipper = require('unzipper')
 
 // Environment-aware Puppeteer runtime selection
 const RUNTIME = process.env.WAAKU_RUNTIME || 'linux' // 'linux' (default) | 'mac'
@@ -62,6 +66,52 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
 const AUTH_STRATEGY = (process.env.WAAKU_AUTH_STRATEGY || 'local').toLowerCase()
 const REDIS_URL = process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || '6379'}`
+const ZIP_DIR = process.env.WAAKU_ZIP_DIR || os.tmpdir()
+
+// Ensure RemoteAuth zip/temp paths use writable temp dir to avoid EACCES
+function patchRemoteAuthPaths() {
+	const proto = RemoteAuth.prototype
+
+	proto.compressSession = async function () {
+		const zipPath = path.join(ZIP_DIR, `${this.sessionName}.zip`)
+		await fse.ensureDir(ZIP_DIR)
+		await fse.copy(this.userDataDir, this.tempDir).catch(() => {})
+		await this.deleteMetadata()
+		const archive = archiver('zip')
+		const stream = fse.createWriteStream(zipPath)
+		return new Promise((resolve, reject) => {
+			archive.directory(this.tempDir, false).on('error', err => reject(err)).pipe(stream)
+			stream.on('close', () => resolve(zipPath))
+			archive.finalize()
+		})
+	}
+
+	proto.storeRemoteSession = async function (options) {
+		const zipPath = await this.compressSession()
+		await this.store.save({ session: this.sessionName })
+		await fse.remove(zipPath).catch(() => {})
+		await fse.remove(this.tempDir).catch(() => {})
+		if (options && options.emit) this.client.emit('remote_session_saved')
+	}
+
+	proto.extractRemoteSession = async function () {
+		const pathExists = await this.isValidPath(this.userDataDir)
+		const zipPath = path.join(ZIP_DIR, `${this.sessionName}.zip`)
+		const sessionExists = await this.store.sessionExists({ session: this.sessionName })
+		if (pathExists) {
+			await fse.remove(this.userDataDir).catch(() => {})
+		}
+		if (sessionExists) {
+			await this.store.extract({ session: this.sessionName, path: zipPath })
+			await this.unCompressSession(zipPath)
+			await fse.remove(zipPath).catch(() => {})
+		} else {
+			await fse.mkdirp(this.userDataDir)
+		}
+	}
+}
+
+patchRemoteAuthPaths()
 
 let redisClient = null
 
@@ -73,41 +123,15 @@ class RedisSessionStore {
 	}
 
 	async save(data) {
-		if (!data) return
-
-		// Mandatory creds
-		if (data.creds) {
-			await this.redis.set(this.prefix + 'creds', JSON.stringify(data.creds))
-		}
-
-		// Mandatory keys: store each key separately to match whatsapp-web.js expectations
-		if (data.keys) {
-			for (const [k, v] of Object.entries(data.keys)) {
-				await this.redis.set(`${this.prefix}keys:${k}`, JSON.stringify(v))
-			}
-		}
+		if (!data || !data.session) return
+		const zipPath = path.join(ZIP_DIR, `${data.session}.zip`)
+		const buffer = await fs.readFile(zipPath)
+		await this.redis.set(this.prefix + data.session, buffer)
 	}
 
 	async extract() {
-		const baseCreds = await this.redis.get(this.prefix + 'creds')
-		if (!baseCreds) return null
-
-		const keysList = await this.redis.keys(this.prefix + 'keys:*')
-		const keys = {}
-		for (const redisKey of keysList) {
-			const keyName = redisKey.replace(this.prefix + 'keys:', '')
-			const raw = await this.redis.get(redisKey)
-			try {
-				keys[keyName] = JSON.parse(raw)
-			} catch (e) {
-				console.log('[RemoteAuth] Failed parsing key', keyName)
-			}
-		}
-
-		return {
-			creds: JSON.parse(baseCreds),
-			keys
-		}
+		// Not used directly; RemoteAuth calls store.extract({session, path})
+		return null
 	}
 
 	async delete() {
@@ -118,9 +142,17 @@ class RedisSessionStore {
 	}
 
 	// whatsapp-web.js expects sessionExists to check stored state
-	async sessionExists() {
-		const credsExists = await this.redis.exists(this.prefix + 'creds')
-		return credsExists === 1
+	async sessionExists({ session }) {
+		const exists = await this.redis.exists(this.prefix + session)
+		return exists === 1
+	}
+
+	async extractZip(session) {
+		const zipPath = path.join(ZIP_DIR, `${session}.zip`)
+		const data = await this.redis.sendCommand(['GET', this.prefix + session], { returnBuffers: true })
+		if (!data) return null
+		await fs.writeFile(zipPath, data)
+		return zipPath
 	}
 }
 
@@ -165,9 +197,15 @@ async function buildAuthStrategy(sanitizedId) {
 		return new RemoteAuth({
 			store: {
 				save: async (data) => store.save(data),
-				extract: async () => store.extract(),
+				extract: async ({ session, path: outPath }) => {
+					const zipPath = await store.extractZip(session)
+					if (zipPath && outPath && zipPath !== outPath) {
+						const buf = await fs.readFile(zipPath)
+						await fs.writeFile(outPath, buf)
+					}
+				},
 				delete: async () => store.delete(),
-				sessionExists: async () => store.sessionExists()
+				sessionExists: async ({ session }) => store.sessionExists({ session })
 			},
 			clientId: sanitizedId,
 			backupSyncIntervalMs: 300000
