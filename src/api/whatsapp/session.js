@@ -564,7 +564,8 @@ function getAllSessionsHealth() {
 	}
 }
 
-async function deleteSession(id) {
+async function deleteSession(id, options = {}) {
+	const keepRemoteStore = options.keepRemoteStore === true
 	const s = sessions[id]
 	if (s && s.client) {
 		try {
@@ -574,7 +575,9 @@ async function deleteSession(id) {
 		}
 	}
 	delete sessions[id]
-	await clearRemoteStore(id)
+	if (!keepRemoteStore) {
+		await clearRemoteStore(id)
+	}
 	const io = getIO()
 	if (io) io.emit('sessions:update', listSessions())
 	return { success: true }

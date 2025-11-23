@@ -83,8 +83,9 @@ async function restartSessionHandler(req, res) {
 			return res.status(404).json({ error: 'Session not found' })
 		}
 		// Cleanly remove existing session (safe destroy) before recreation
+		// Destroy client but احتفظ بالبيانات في Redis حتى لا تفقد المصادقة
 		try {
-			await removeSession(id)
+			await removeSession(id, { keepRemoteStore: true })
 		} catch (err) {
 			console.warn(`[RESTART] Failed to destroy existing session ${id} (ignored):`, err?.message || err)
 		}
