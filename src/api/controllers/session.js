@@ -44,8 +44,8 @@ async function getQrHandler(req, res) {
 function getAllHealthHandler(req, res) {
 	try {
 		const healthData = getAllSessionsHealth()
-		const statusCode = healthData.overallHealth ? 200 : 503
-		res.status(statusCode).json({
+		// Always return 200 and embed الحالة بدل قطع الواجهة بـ 503
+		res.status(200).json({
 			status: healthData.overallHealth ? 'healthy' : 'unhealthy',
 			...healthData,
 		})
@@ -65,8 +65,8 @@ function getOneHealthHandler(req, res) {
 		if (sessionHealth.status === 'not_found') {
 			return res.status(404).json(sessionHealth)
 		}
-		const statusCode = sessionHealth.healthy ? 200 : 503
-		res.status(statusCode).json(sessionHealth)
+		// لا نعيد 503 لتفادي كسر الواجهة؛ نبقي الحالة داخل الجسم
+		res.status(200).json(sessionHealth)
 	} catch (err) {
 		res.status(500).json({
 			status: 'error',
