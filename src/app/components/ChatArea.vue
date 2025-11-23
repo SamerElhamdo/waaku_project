@@ -168,25 +168,25 @@
 				>
 					<div
 						:class="[
-							'max-w-xs md:max-w-md lg-max-w-lg px-4 py-2 rounded-lg shadow-sm relative',
+							'max-w-xs md:max-w-md lg:max-w-lg px-4 py-3 rounded-lg shadow-sm relative',
 							message.isFromMe
 								? 'bg-green-500 text-white rounded-tr-none'
 								: 'bg-white text-gray-900 rounded-tl-none border border-gray-200'
 						]"
 					>
 						<button
-							class="absolute top-2 left-2 text-xs text-gray-200 hover:text-white"
+							class="absolute top-2 right-2 text-xs"
 							:class="message.isFromMe ? 'text-white/70 hover:text-white' : 'text-gray-400 hover:text-gray-700'"
 							@click.stop="toggleActionMenu(message.id)"
 							title="خيارات"
 						>
 							<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
 								<path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm4 2a2 2 0 100-4 2 2 0 000 4z"/>
-							</svg>
+						</svg>
 						</button>
 						<div
 							v-if="actionMenuId === message.id"
-							class="absolute z-10 top-6 left-2 bg-white text-gray-800 border border-gray-200 rounded-lg shadow-lg py-1 text-sm w-32"
+							class="absolute z-10 top-8 right-2 bg-white text-gray-800 border border-gray-200 rounded-lg shadow-lg py-1 text-sm w-32"
 						>
 							<button
 								class="w-full text-right px-3 py-1 hover:bg-gray-100"
@@ -420,6 +420,64 @@
 			/>
 		</div>
 
+		<!-- Forward Modal -->
+		<div
+			v-if="forwardModal"
+			class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+		>
+			<div class="bg-white w-full max-w-lg rounded-2xl shadow-xl p-6 space-y-4" dir="rtl">
+				<div class="flex items-center justify-between">
+					<h3 class="text-lg font-semibold text-gray-900">تحويل الرسالة</h3>
+					<button @click="forwardModal = false" class="text-gray-500 hover:text-gray-700">
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<p class="text-sm text-gray-600">
+					اختر جهات الاتصال أو المحادثات المراد التحويل إليها (يمكن اختيار أكثر من جهة).
+				</p>
+
+				<div class="max-h-64 overflow-y-auto space-y-2 border rounded-lg p-2">
+					<button
+						v-for="chatItem in availableChats"
+						:key="chatItem.id"
+						type="button"
+						@click="toggleForwardTarget(chatItem.id)"
+						class="w-full flex items-center justify-between px-3 py-2 rounded-lg border hover:bg-gray-50 transition"
+						:class="forwardTargets.includes(chatItem.id) ? 'border-green-400 bg-green-50' : 'border-gray-200'"
+					>
+						<div class="flex flex-col text-right">
+							<span class="text-sm font-semibold text-gray-800">{{ chatItem.name || chatItem.contact?.name || 'بدون اسم' }}</span>
+							<span class="text-xs text-gray-500">{{ chatItem.contact?.number || chatItem.id }}</span>
+						</div>
+						<span v-if="forwardTargets.includes(chatItem.id)" class="text-green-600 text-xs font-semibold">محدد</span>
+					</button>
+
+					<div v-if="!availableChats || !availableChats.length" class="text-center text-gray-500 text-sm py-4">
+						لا توجد محادثات متاحة
+					</div>
+				</div>
+
+				<div class="flex items-center justify-end gap-3 pt-2">
+					<button
+						@click="forwardModal = false"
+						class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+					>
+						إلغاء
+					</button>
+					<button
+						@click="confirmForward"
+						:disabled="!forwardTargets.length"
+						class="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
+					>
+						تحويل ({{ forwardTargets.length }})
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<!-- Contact Modal -->
 		<div
 			v-if="contactModal"
@@ -525,10 +583,14 @@ const props = defineProps({
 	onMobile: {
 		type: Boolean,
 		default: false
+	},
+	availableChats: {
+		type: Array,
+		default: () => []
 	}
 })
 
-const emit = defineEmits(['back', 'message-sent', 'forward-message'])
+const emit = defineEmits(['back', 'message-sent', 'forward-send'])
 
 const messages = ref([])
 const messageText = ref('')
@@ -551,6 +613,9 @@ const contactBlocking = ref(false)
 const contactUnblocking = ref(false)
 const messageElementMap = new Map()
 const copiedMessageId = ref('')
+const forwardModal = ref(false)
+const forwardTargets = ref([])
+const forwardMessagePayload = ref(null)
 
 const mediaCount = computed(() => messages.value.filter(m => m.hasMedia || m.mediaData).length)
 const lastUpdatedText = computed(() => {
@@ -841,7 +906,32 @@ function closeActionMenu() {
 
 function forwardMessage(message) {
 	closeActionMenu()
-	emit('forward-message', message)
+	forwardMessagePayload.value = message
+	forwardTargets.value = []
+	forwardModal.value = true
+}
+
+function toggleForwardTarget(chatId) {
+	const idx = forwardTargets.value.indexOf(chatId)
+	if (idx >= 0) {
+		forwardTargets.value.splice(idx, 1)
+	} else {
+		forwardTargets.value.push(chatId)
+	}
+}
+
+function confirmForward() {
+	if (!forwardMessagePayload.value || !forwardTargets.value.length) {
+		forwardModal.value = false
+		return
+	}
+	emit('forward-send', {
+		message: forwardMessagePayload.value,
+		targets: [...forwardTargets.value]
+	})
+	forwardModal.value = false
+	forwardTargets.value = []
+	forwardMessagePayload.value = null
 }
 
 async function loadMediaForMessage(message, auto = false) {
