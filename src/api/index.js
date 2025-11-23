@@ -22,7 +22,18 @@ const server = http.createServer(app)
 
 // Security and performance middleware
 app.use(helmet({
-	crossOriginResourcePolicy: { policy: 'cross-origin' }
+	crossOriginResourcePolicy: { policy: 'cross-origin' },
+	contentSecurityPolicy: {
+		useDefaults: true,
+		directives: {
+			// Allow inlined/base64 media (audio) similar to WhatsApp web payloads
+			'media-src': ["'self'", 'data:', 'blob:'],
+			// Keep images safe but permit data/base64/thumbs
+			'img-src': ["'self'", 'data:', 'blob:'],
+			// Allow websocket / same-origin API; helmet will merge defaults
+			'connect-src': ["'self'", 'ws:', 'wss:']
+		}
+	}
 }))
 
 // Trust proxy (needed when running behind nginx to ensure secure cookies behave correctly)
