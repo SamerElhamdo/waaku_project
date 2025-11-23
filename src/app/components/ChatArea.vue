@@ -181,8 +181,8 @@
 							title="خيارات"
 						>
 							<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-								<path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm4 2a2 2 0 100-4 2 2 0 000 4z"/>
-						</svg>
+								<path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm4 2a2 2 0 100-4 2 2 0 000 4z" />
+							</svg>
 						</button>
 						<div
 							v-if="actionMenuId === message.id"
@@ -468,6 +468,8 @@
 					<div v-else-if="!filteredForwardChats.length" class="text-center text-gray-500 text-sm py-4">
 						لا توجد محادثات متاحة
 					</div>
+				</div>
+
 				</div>
 
 				<div class="flex items-center justify-end gap-3 pt-2">
