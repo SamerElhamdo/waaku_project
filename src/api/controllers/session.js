@@ -82,8 +82,11 @@ async function restartSessionHandler(req, res) {
 		if (!session) {
 			return res.status(404).json({ error: 'Session not found' })
 		}
-		if (session.client) {
-			await session.client.destroy()
+		// Cleanly remove existing session (safe destroy) before recreation
+		try {
+			await removeSession(id)
+		} catch (err) {
+			console.warn(`[RESTART] Failed to destroy existing session ${id} (ignored):`, err?.message || err)
 		}
 		await createSession(id)
 		res.json({
@@ -96,7 +99,8 @@ async function restartSessionHandler(req, res) {
 		if (io) io.emit('sessions:update', listSessions())
 	} catch (err) {
 		res.status(500).json({
-			error: err.message,
+			error: 'Failed to restart session',
+			detail: err.message,
 			timestamp: new Date(),
 		})
 	}

@@ -548,7 +548,11 @@ function getAllSessionsHealth() {
 async function deleteSession(id) {
 	const s = sessions[id]
 	if (s && s.client) {
-		try { await s.client.destroy() } catch (_) {}
+		try {
+			await s.client.destroy()
+		} catch (err) {
+			console.warn(`[${id}] destroy failed (ignored):`, err?.message || err)
+		}
 	}
 	delete sessions[id]
 	const io = getIO()
