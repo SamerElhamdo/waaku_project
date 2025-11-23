@@ -816,12 +816,28 @@ async function sendChatMessage(sessionId, chatId, messageText) {
 
 // Restore saved sessions on startup
 async function restoreSessions() {
-	if (AUTH_STRATEGY === 'remote') {
-		console.log('[RESTORE] RemoteAuth enabled; sessions will be loaded from Redis automatically.')
-		return
-	}
-
 	try {
+		if (AUTH_STRATEGY === 'remote') {
+			const redis = await getRedisClient()
+			const keys = await redis.keys('RemoteAuth:*:creds')
+			if (!keys.length) {
+				console.log('[RESTORE] RemoteAuth enabled; no stored sessions found in Redis.')
+				return
+			}
+			const clientIds = keys.map(k => k.replace(/^RemoteAuth:/, '').replace(/:creds$/, ''))
+			console.log(`[RESTORE] RemoteAuth found ${clientIds.length} session(s): ${clientIds.join(', ')}`)
+			for (const clientId of clientIds) {
+				if (sessions[clientId]) continue
+				try {
+					await createSession(clientId)
+					sessions[clientId].restored = true
+				} catch (err) {
+					console.error(`[RESTORE] Failed to restore remote session ${clientId}:`, err.message || err)
+				}
+			}
+			return
+		}
+
 		const authDir = path.join(process.cwd(), '.wwebjs_auth')
 		
 		// Check if auth directory exists
