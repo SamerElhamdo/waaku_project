@@ -168,12 +168,36 @@
 				>
 					<div
 						:class="[
-							'max-w-xs md:max-w-md lg:max-w-lg px-4 py-2 rounded-lg shadow-sm',
+							'max-w-xs md:max-w-md lg-max-w-lg px-4 py-2 rounded-lg shadow-sm relative',
 							message.isFromMe
 								? 'bg-green-500 text-white rounded-tr-none'
 								: 'bg-white text-gray-900 rounded-tl-none border border-gray-200'
 						]"
 					>
+						<button
+							class="absolute top-2 left-2 text-xs text-gray-200 hover:text-white"
+							:class="message.isFromMe ? 'text-white/70 hover:text-white' : 'text-gray-400 hover:text-gray-700'"
+							@click.stop="toggleActionMenu(message.id)"
+							title="خيارات"
+						>
+							<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+								<path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm4 2a2 2 0 100-4 2 2 0 000 4z"/>
+							</svg>
+						</button>
+						<div
+							v-if="actionMenuId === message.id"
+							class="absolute z-10 top-6 left-2 bg-white text-gray-800 border border-gray-200 rounded-lg shadow-lg py-1 text-sm w-32"
+						>
+							<button
+								class="w-full text-right px-3 py-1 hover:bg-gray-100"
+								@click.stop="copyMessage(message); closeActionMenu()"
+							>نسخ</button>
+							<button
+								class="w-full text-right px-3 py-1 hover:bg-gray-100"
+								@click.stop="forwardMessage(message)"
+							>تحويل</button>
+						</div>
+
 						<!-- Quoted Message -->
 						<div
 							v-if="message.quotedMessage"
@@ -285,8 +309,23 @@
 								<span class="text-sm text-gray-700" dir="rtl">تحميل الوسائط</span>
 							</button>
 						</div>
-						<!-- Text Message -->
-						<p v-if="message.body" class="text-sm whitespace-pre-wrap break-words">{{ message.body }}</p>
+						<!-- Text Message + actions -->
+						<div v-if="message.body" class="flex items-start gap-2">
+							<p class="text-sm whitespace-pre-wrap break-words flex-1">{{ message.body }}</p>
+							<button
+								@click="copyMessage(message)"
+								class="text-xs text-white/80 hover:text-white transition-colors"
+								:class="message.isFromMe ? 'text-white/80 hover:text-white' : 'text-gray-500 hover:text-gray-700'"
+								title="نسخ الرسالة"
+							>
+								<svg v-if="copiedMessageId === message.id" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+								</svg>
+								<svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-8 4h8m-8 4h6m2 4H8a2 2 0 01-2-2V7a2 2 0 012-2h8l4 4v10a2 2 0 01-2 2z"/>
+								</svg>
+							</button>
+						</div>
 
 						<!-- Message Time -->
 						<div
@@ -489,7 +528,7 @@ const props = defineProps({
 	}
 })
 
-const emit = defineEmits(['back', 'message-sent'])
+const emit = defineEmits(['back', 'message-sent', 'forward-message'])
 
 const messages = ref([])
 const messageText = ref('')
@@ -511,6 +550,7 @@ const contactError = ref('')
 const contactBlocking = ref(false)
 const contactUnblocking = ref(false)
 const messageElementMap = new Map()
+const copiedMessageId = ref('')
 
 const mediaCount = computed(() => messages.value.filter(m => m.hasMedia || m.mediaData).length)
 const lastUpdatedText = computed(() => {
@@ -518,6 +558,7 @@ const lastUpdatedText = computed(() => {
 	const lastMessage = messages.value[messages.value.length - 1]
 	return formatMessageTime(lastMessage.timestamp) || 'Just now'
 })
+const actionMenuId = ref('')
 
 function getChatInitials(chat) {
 	const name = chat.name || chat.contact?.name || '?'
@@ -766,6 +807,41 @@ function formatAudioTime(seconds) {
 	const mins = Math.floor(seconds / 60)
 	const secs = Math.floor(seconds % 60)
 	return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+async function copyMessage(message) {
+	if (!message?.body) return
+	try {
+		if (navigator?.clipboard?.writeText) {
+			await navigator.clipboard.writeText(message.body)
+		} else {
+			const el = document.createElement('textarea')
+			el.value = message.body
+			document.body.appendChild(el)
+			el.select()
+			document.execCommand('copy')
+			document.body.removeChild(el)
+		}
+		copiedMessageId.value = message.id
+		setTimeout(() => {
+			if (copiedMessageId.value === message.id) copiedMessageId.value = ''
+		}, 1500)
+	} catch (err) {
+		console.error('Failed to copy message', err)
+	}
+}
+
+function toggleActionMenu(id) {
+	actionMenuId.value = actionMenuId.value === id ? '' : id
+}
+
+function closeActionMenu() {
+	actionMenuId.value = ''
+}
+
+function forwardMessage(message) {
+	closeActionMenu()
+	emit('forward-message', message)
 }
 
 async function loadMediaForMessage(message, auto = false) {
