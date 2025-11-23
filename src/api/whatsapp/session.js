@@ -129,6 +129,18 @@ async function getRedisClient() {
 	return redisClient
 }
 
+async function clearRemoteStore(clientId) {
+	if (AUTH_STRATEGY !== 'remote') return
+	try {
+		const redis = await getRedisClient()
+		const store = new RedisSessionStore(redis, clientId)
+		await store.delete()
+		console.log(`[RemoteAuth] Cleared store for ${clientId}`)
+	} catch (err) {
+		console.warn(`[RemoteAuth] Failed to clear store for ${clientId}:`, err?.message || err)
+	}
+}
+
 async function buildAuthStrategy(sanitizedId) {
 	if (AUTH_STRATEGY !== 'remote') {
 		return new LocalAuth({ clientId: sanitizedId })
@@ -555,6 +567,7 @@ async function deleteSession(id) {
 		}
 	}
 	delete sessions[id]
+	await clearRemoteStore(id)
 	const io = getIO()
 	if (io) io.emit('sessions:update', listSessions())
 	return { success: true }
