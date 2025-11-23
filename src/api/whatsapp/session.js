@@ -66,37 +66,55 @@ const REDIS_URL = process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 
 let redisClient = null
 
 class RedisSessionStore {
-	constructor({ client, prefix = 'waaku:' }) {
-		this.client = client
-		this.prefix = prefix
+	constructor(redis, clientId) {
+		this.redis = redis
+		this.clientId = clientId
+		this.prefix = `RemoteAuth:${clientId}:`
 	}
 
-	key(session) {
-		return `${this.prefix}${session}`
-	}
+	async save(data) {
+		if (!data) return
 
-	async sessionExists({ session }) {
-		const exists = await this.client.exists(this.key(session))
-		return exists === 1
-	}
-
-	async save({ session }) {
-		const zipPath = `${session}.zip`
-		const data = await fs.readFile(zipPath)
-		await this.client.set(this.key(session), data)
-	}
-
-	async extract({ session, path: outPath }) {
-		// redis v4 لا يوفّر getBuffer مباشرة؛ استخدم sendCommand مع returnBuffers
-		const data = await this.client.sendCommand(['GET', this.key(session)], { returnBuffers: true })
-		if (!data) {
-			throw new Error(`Session ${session} not found in Redis`)
+		// Mandatory creds
+		if (data.creds) {
+			await this.redis.set(this.prefix + 'creds', JSON.stringify(data.creds))
 		}
-		await fs.writeFile(outPath, data)
+
+		// Mandatory keys: store each key separately to match whatsapp-web.js expectations
+		if (data.keys) {
+			for (const [k, v] of Object.entries(data.keys)) {
+				await this.redis.set(`${this.prefix}keys:${k}`, JSON.stringify(v))
+			}
+		}
 	}
 
-	async delete({ session }) {
-		await this.client.del(this.key(session))
+	async extract() {
+		const baseCreds = await this.redis.get(this.prefix + 'creds')
+		if (!baseCreds) return null
+
+		const keysList = await this.redis.keys(this.prefix + 'keys:*')
+		const keys = {}
+		for (const redisKey of keysList) {
+			const keyName = redisKey.replace(this.prefix + 'keys:', '')
+			const raw = await this.redis.get(redisKey)
+			try {
+				keys[keyName] = JSON.parse(raw)
+			} catch (e) {
+				console.log('[RemoteAuth] Failed parsing key', keyName)
+			}
+		}
+
+		return {
+			creds: JSON.parse(baseCreds),
+			keys
+		}
+	}
+
+	async delete() {
+		const all = await this.redis.keys(this.prefix + '*')
+		if (all.length) {
+			await this.redis.del(all)
+		}
 	}
 }
 
@@ -112,20 +130,33 @@ async function getRedisClient() {
 }
 
 async function buildAuthStrategy(sanitizedId) {
-	if (AUTH_STRATEGY === 'remote') {
-		try {
-			const client = await getRedisClient()
-			const store = new RedisSessionStore({ client, prefix: `waaku:${sanitizedId}:` })
-			return new RemoteAuth({
-				store,
-				clientId: sanitizedId,
-				backupSyncIntervalMs: 300000 // 5 minutes
-			})
-		} catch (error) {
-			console.error('[AUTH] RemoteAuth init failed, falling back to LocalAuth:', error.message)
-		}
+	if (AUTH_STRATEGY !== 'remote') {
+		return new LocalAuth({ clientId: sanitizedId })
 	}
-	return new LocalAuth({ clientId: sanitizedId })
+
+	try {
+		const redis = await getRedisClient()
+		const store = new RedisSessionStore(redis, sanitizedId)
+		const existing = await store.extract()
+		if (existing) {
+			console.log(`[RemoteAuth] Restoring session for ${sanitizedId}`)
+		} else {
+			console.log(`[RemoteAuth] Creating new session for ${sanitizedId}`)
+		}
+
+		return new RemoteAuth({
+			store: {
+				save: async (data) => store.save(data),
+				extract: async () => store.extract(),
+				delete: async () => store.delete()
+			},
+			clientId: sanitizedId,
+			backupSyncIntervalMs: 300000
+		})
+	} catch (error) {
+		console.error('[AUTH] RemoteAuth init failed, falling back to LocalAuth:', error.message)
+		return new LocalAuth({ clientId: sanitizedId })
+	}
 }
 
 // Function to send webhook notification
@@ -187,6 +218,9 @@ async function createSession(id) {
 	const client = new Client({
 		authStrategy,
 		puppeteer: buildPuppeteerOptions(),
+		takeoverOnConflict: false,
+		takeoverTimeoutMs: 0,
+		restartOnAuthFail: false
 	})
 
 	client.on('qr', (qr) => {
@@ -419,7 +453,9 @@ async function createSession(id) {
 		}
 	})
 
-	client.initialize()
+	client.initialize().catch(err => {
+		console.error(`[${sanitizedId}] Initialization failed`, err)
+	})
 
 	// Use sanitized ID as the session key
 	sessions[sanitizedId] = {
