@@ -116,6 +116,12 @@ class RedisSessionStore {
 			await this.redis.del(all)
 		}
 	}
+
+	// whatsapp-web.js expects sessionExists to check stored state
+	async sessionExists() {
+		const credsExists = await this.redis.exists(this.prefix + 'creds')
+		return credsExists === 1
+	}
 }
 
 async function getRedisClient() {
