@@ -223,6 +223,19 @@ async function createSession(id) {
 		restartOnAuthFail: false
 	})
 
+	// Initialize session entry early so event handlers can safely write QR/status
+	sessions[sanitizedId] = {
+		client,
+		qr: null,
+		ready: false,
+		status: 'initializing',
+		clientState: null,
+		error: null,
+		createdAt: new Date(),
+		lastActivity: new Date(),
+		originalId: id !== sanitizedId ? id : null // Keep track of original ID if it was sanitized
+	}
+
 	client.on('qr', (qr) => {
 		console.log(`[${sanitizedId}] QR RECEIVED`)
 		sessions[sanitizedId].qr = qr
@@ -457,19 +470,6 @@ async function createSession(id) {
 		console.error(`[${sanitizedId}] Initialization failed`, err)
 	})
 
-	// Use sanitized ID as the session key
-	sessions[sanitizedId] = {
-		client,
-		qr: null,
-		ready: false,
-		status: 'initializing',
-		clientState: null,
-		error: null,
-		createdAt: new Date(),
-		lastActivity: new Date(),
-		originalId: id !== sanitizedId ? id : null // Keep track of original ID if it was sanitized
-	}
-	
 	return sessions[sanitizedId]
 }
 

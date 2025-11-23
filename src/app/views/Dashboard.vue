@@ -175,16 +175,6 @@
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
 									</svg>
 								</button>
-								<button v-if="s.ready" @click="exportSession(s.id)" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Export Session with Chats">
-									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-									</svg>
-								</button>
-								<button @click="importSessionFile(s.id)" class="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Import Session with Chats">
-									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-									</svg>
-								</button>
 								<button v-if="!qrLoading[s.id] && (qr[s.id] && qr[s.id] !== '')" @click="openQrModal(s.id)" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors flex items-center" title="Show QR Code">
 									<svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
@@ -602,52 +592,5 @@ function openChatView(sessionId) {
 	router.push(`/chat/${sessionId}`)
 }
 
-// Export/Import Functions
-async function exportSession(sessionId) {
-	showLoading('Exporting session with chats...')
-	try {
-		const exportData = await api.exportSession(sessionId, true)
-		const dataStr = JSON.stringify(exportData, null, 2)
-		const dataBlob = new Blob([dataStr], { type: 'application/json' })
-		const url = URL.createObjectURL(dataBlob)
-		const link = document.createElement('a')
-		link.href = url
-		link.download = `waaku-session-${sessionId}-${new Date().toISOString().split('T')[0]}.json`
-		document.body.appendChild(link)
-		link.click()
-		document.body.removeChild(link)
-		URL.revokeObjectURL(url)
-		showNotification(`Session "${sessionId}" exported successfully!`)
-	} catch (err) {
-		const errorMessage = getErrorMessage(err)
-		showNotification(`Failed to export session: ${errorMessage}`, 'error')
-	} finally {
-		hideLoading()
-	}
-}
-
-function importSessionFile(sessionId = null) {
-	const input = document.createElement('input')
-	input.type = 'file'
-	input.accept = '.json'
-	input.onchange = async (e) => {
-		const file = e.target.files[0]
-		if (!file) return
-		
-		showLoading('Importing session with chats...')
-		try {
-			const text = await file.text()
-			const exportData = JSON.parse(text)
-			await api.importSession(exportData, sessionId)
-			showNotification(`Session imported successfully!`)
-			await fetchAllData()
-		} catch (err) {
-			const errorMessage = getErrorMessage(err)
-			showNotification(`Failed to import session: ${errorMessage}`, 'error')
-		} finally {
-			hideLoading()
-		}
-	}
-	input.click()
-}
+// Export/Import removed
 </script>

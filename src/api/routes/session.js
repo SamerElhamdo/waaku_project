@@ -8,8 +8,6 @@ const {
 	getOneHealthHandler,
 	restartSessionHandler,
 	deleteSessionHandler,
-	exportSessionHandler,
-	importSessionHandler,
 } = require('../controllers/session')
 
 const { requireRole } = require('../middleware/tokenAuth')
@@ -43,11 +41,5 @@ router.post('/:id/restart', adminOnly, restartSessionHandler)
 
 // Delete a session
 router.delete('/:id', adminOnly, deleteSessionHandler)
-
-// Export a session (with optional cache)
-router.get('/:id/export', adminOnly, exportSessionHandler)
-
-// Import a session
-router.post('/import', adminOnly, importSessionHandler)
 
 module.exports = router

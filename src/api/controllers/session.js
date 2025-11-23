@@ -6,8 +6,6 @@ const {
 	getSessionHealth,
 	getAllSessionsHealth,
 	deleteSession: removeSession,
-	exportSession,
-	importSession,
 } = require('../whatsapp/session')
 const { getIO } = require('../socket')
 
@@ -117,38 +115,6 @@ async function deleteSessionHandler(req, res) {
 	}
 }
 
-// Export a session
-async function exportSessionHandler(req, res) {
-	try {
-		const id = req.params.id
-		const includeCache = req.query.cache !== 'false' // Default to true
-		
-		const exportData = await exportSession(id, includeCache === true)
-		res.json(exportData)
-	} catch (err) {
-		console.error('[EXPORT] Error:', err)
-		res.status(500).json({ error: err.message || 'Failed to export session' })
-	}
-}
-
-// Import a session
-async function importSessionHandler(req, res) {
-	try {
-		const exportData = req.body
-		const newSessionId = req.body.newSessionId || null
-		
-		if (!exportData || !exportData.auth) {
-			return res.status(400).json({ error: 'Invalid export data' })
-		}
-		
-		const result = await importSession(exportData, newSessionId)
-		res.json(result)
-	} catch (err) {
-		console.error('[IMPORT] Error:', err)
-		res.status(500).json({ error: err.message || 'Failed to import session' })
-	}
-}
-
 module.exports = {
 	createSessionHandler,
 	listSessionsHandler,
@@ -157,6 +123,4 @@ module.exports = {
 	getOneHealthHandler,
 	restartSessionHandler,
 	deleteSessionHandler,
-	exportSessionHandler,
-	importSessionHandler,
 }

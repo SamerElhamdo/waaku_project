@@ -109,35 +109,6 @@ export const sendMessage = async (sessionId, phoneNumber, message) => {
 	return response.data
 }
 
-// ===== SESSION EXPORT/IMPORT API =====
-
-/**
- * Export a session (with optional cache)
- * @param {string} sessionId - Session ID to export
- * @param {boolean} includeCache - Whether to include cache (default: true)
- * @returns {Promise} Export data
- */
-export const exportSession = async (sessionId, includeCache = true) => {
-	const response = await http.get(`/api/sessions/${sessionId}/export`, {
-		params: { cache: includeCache }
-	})
-	return response.data
-}
-
-/**
- * Import a session
- * @param {Object} exportData - Exported session data
- * @param {string} newSessionId - Optional new session ID
- * @returns {Promise} Import result
- */
-export const importSession = async (exportData, newSessionId = null) => {
-	const response = await http.post('/api/sessions/import', {
-		...exportData,
-		newSessionId
-	})
-	return response.data
-}
-
 // ===== CHAT API =====
 
 /**
@@ -284,8 +255,6 @@ export default {
 	deleteSession,
 	restartSession,
 	getSessionHealth,
-	exportSession,
-	importSession,
 
 	// QR Code
 	generateQRCode,
