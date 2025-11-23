@@ -176,7 +176,6 @@ class RedisSessionStore {
 		}
 	}
 
-	// whatsapp-web.js expects sessionExists to check stored state
 	async sessionExists(arg) {
 		const session = typeof arg === 'string' ? arg : (arg || {}).session
 		if (!session) return false
@@ -216,6 +215,7 @@ async function listRemoteSessionsInRedis() {
 			ids.add(parts[1])
 		}
 	}
+	dbg(null, 'Redis keys', keys)
 	return Array.from(ids)
 }
 
@@ -239,25 +239,29 @@ async function buildAuthStrategy(sanitizedId) {
 	try {
 		const redis = await getRedisClient()
 		const store = new RedisSessionStore(redis, sanitizedId)
-		const existing = await store.extract()
-		if (existing) {
-			console.log(`[RemoteAuth] Restoring session for ${sanitizedId}`)
-		} else {
-			console.log(`[RemoteAuth] Creating new session for ${sanitizedId}`)
-		}
+		const exists = await store.sessionExists({ session: sanitizedId })
+		console.log(`[RemoteAuth] ${exists ? 'Restoring' : 'Creating new'} session for ${sanitizedId}`)
 
 		return new RemoteAuth({
 			store: {
-				save: async (data) => store.save(data),
-				extract: async ({ session, path: outPath }) => {
-					const zipPath = await store.extractZip(session)
-					if (zipPath && outPath && zipPath !== outPath) {
-						const buf = await fs.readFile(zipPath)
-						await fs.writeFile(outPath, buf)
-					}
+				save: async (data) => {
+					dbg(sanitizedId, 'store.save()', data?.session || data)
+					return store.save(data)
 				},
-				delete: async () => store.delete(),
-				sessionExists: async ({ session }) => store.sessionExists({ session })
+				extract: async (arg) => {
+					dbg(sanitizedId, 'store.extract()', arg)
+					return store.extract(arg)
+				},
+				delete: async () => {
+					dbg(sanitizedId, 'store.delete()')
+					return store.delete()
+				},
+				sessionExists: async (arg) => {
+					const session = typeof arg === 'string' ? arg : (arg || {}).session
+					const res = await store.sessionExists(session || sanitizedId)
+					dbg(sanitizedId, 'store.sessionExists()', session || sanitizedId, res)
+					return res
+				}
 			},
 			clientId: sanitizedId,
 			backupSyncIntervalMs: 300000
