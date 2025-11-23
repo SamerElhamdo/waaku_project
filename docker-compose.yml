@@ -7,37 +7,31 @@ services:
       args:
         VITE_API_KEY: ${VITE_API_KEY}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    platform: linux/amd64
     container_name: waaku
     env_file:
       - .env
     ports:
-      - "4300:4300"   # Expose internal port
+      - "4300:4300"
+
     environment:
       NODE_ENV: production
       PORT: 4300
-      ON_HOST: ${ON_HOST:-true}
+      ON_HOST: true
 
-      # Redis
-      REDIS_HOST: ${REDIS_HOST:-redis}
-      REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      # Redis (EXTERNAL)
+      REDIS_HOST: waaku-redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://waaku-redis:6379
 
-      # App runtime
+      # App configs
       WAAKU_RUNTIME: ${WAAKU_RUNTIME}
-      WAAKU_AUTH_STRATEGY: ${WAAKU_AUTH_STRATEGY:-remote}
-
-      # API + Frontend config
+      WAAKU_AUTH_STRATEGY: remote
       FRONTEND_PORT: ${FRONTEND_PORT}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
       VITE_API_KEY: ${VITE_API_KEY}
       VITE_API_DEV_PORT: ${VITE_API_DEV_PORT}
       VITE_SOCKET_PORT: ${VITE_SOCKET_PORT}
-
-      # API KEY (SHA-512)
       WAAKU_API_KEY: ${WAAKU_API_KEY}
-
-      # Puppeteer
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
 
@@ -51,32 +45,13 @@ services:
 
     networks:
       - waaku-network
-
-    depends_on:
-      - redis
-
-
-
-
-  redis:
-    image: redis:7-alpine
-    container_name: waaku-redis
-    restart: unless-stopped
-    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
-    volumes:
-      - redis_data:/data
-    networks:
-      - waaku-network
-
+      - dokploy-network  # IMPORTANT for Traefik routing
 
 volumes:
   whatsapp_sessions:
-    driver: local
   whatsapp_cache:
-    driver: local
-  redis_data:
-    driver: local
 
 networks:
   waaku-network:
-    driver: bridge
+  dokploy-network:
+    external: true
