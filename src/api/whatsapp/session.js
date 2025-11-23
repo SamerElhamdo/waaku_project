@@ -153,8 +153,16 @@ class RedisSessionStore {
 		await this.redis.set(this.prefix + data.session, buffer)
 	}
 
-	async extract({ session, path: outPath }) {
-		// RemoteAuth calls extract({ session, path })
+	async extract(arg1, arg2) {
+		// Accept both extract({ session, path }) and extract(session, path)
+		let session, outPath
+		if (typeof arg1 === 'string') {
+			session = arg1
+			outPath = arg2
+		} else {
+			({ session, path: outPath } = arg1 || {})
+		}
+		if (!session || !outPath) return null
 		const data = await this.redis.sendCommand(['GET', this.prefix + session], { returnBuffers: true })
 		if (!data) return null
 		await fs.writeFile(outPath, data)
@@ -169,7 +177,9 @@ class RedisSessionStore {
 	}
 
 	// whatsapp-web.js expects sessionExists to check stored state
-	async sessionExists({ session }) {
+	async sessionExists(arg) {
+		const session = typeof arg === 'string' ? arg : (arg || {}).session
+		if (!session) return false
 		const exists = await this.redis.exists(this.prefix + session)
 		return exists === 1
 	}
