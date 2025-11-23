@@ -153,9 +153,12 @@ class RedisSessionStore {
 		await this.redis.set(this.prefix + data.session, buffer)
 	}
 
-	async extract() {
-		// Not used directly; RemoteAuth calls store.extract({session, path})
-		return null
+	async extract({ session, path: outPath }) {
+		// RemoteAuth calls extract({ session, path })
+		const data = await this.redis.sendCommand(['GET', this.prefix + session], { returnBuffers: true })
+		if (!data) return null
+		await fs.writeFile(outPath, data)
+		return outPath
 	}
 
 	async delete() {
@@ -189,6 +192,21 @@ async function getRedisClient() {
 	await redisClient.connect()
 	console.log(`[REDIS] Connected at ${REDIS_URL}`)
 	return redisClient
+}
+
+async function listRemoteSessionsInRedis() {
+	if (AUTH_STRATEGY !== 'remote') return []
+	const redis = await getRedisClient()
+	// Keys look like RemoteAuth:<clientId>:<sessionId>
+	const keys = await redis.keys('RemoteAuth:*:*')
+	const ids = new Set()
+	for (const key of keys) {
+		const parts = key.split(':')
+		if (parts.length >= 2 && parts[1]) {
+			ids.add(parts[1])
+		}
+	}
+	return Array.from(ids)
 }
 
 async function clearRemoteStore(clientId) {
@@ -883,21 +901,23 @@ async function sendChatMessage(sessionId, chatId, messageText) {
 async function restoreSessions() {
 	try {
 		if (AUTH_STRATEGY === 'remote') {
-			const redis = await getRedisClient()
-			const keys = await redis.keys('RemoteAuth:*:creds')
-			if (!keys.length) {
+			const ids = await listRemoteSessionsInRedis()
+			if (!ids.length) {
 				console.log('[RESTORE] RemoteAuth enabled; no stored sessions found in Redis.')
 				return
 			}
-			const clientIds = keys.map(k => k.replace(/^RemoteAuth:/, '').replace(/:creds$/, ''))
-			console.log(`[RESTORE] RemoteAuth found ${clientIds.length} session(s): ${clientIds.join(', ')}`)
-			for (const clientId of clientIds) {
-				if (sessions[clientId]) continue
+			console.log(`[RESTORE] RemoteAuth: found ${ids.length} session(s) in Redis: ${ids.join(', ')}`)
+			for (const id of ids) {
+				if (sessions[id]) {
+					console.log(`[RESTORE] Session ${id} already in memory, skipping`)
+					continue
+				}
 				try {
-					await createSession(clientId)
-					sessions[clientId].restored = true
+					console.log(`[RESTORE] Rehydrating remote session: ${id}`)
+					await createSession(id)
+					if (sessions[id]) sessions[id].restored = true
 				} catch (err) {
-					console.error(`[RESTORE] Failed to restore remote session ${clientId}:`, err.message || err)
+					console.error(`[RESTORE] Failed to restore remote session ${id}:`, err.message || err)
 				}
 			}
 			return
