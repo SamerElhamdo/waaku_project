@@ -166,7 +166,8 @@ async function buildAuthStrategy(sanitizedId) {
 			store: {
 				save: async (data) => store.save(data),
 				extract: async () => store.extract(),
-				delete: async () => store.delete()
+				delete: async () => store.delete(),
+				sessionExists: async () => store.sessionExists()
 			},
 			clientId: sanitizedId,
 			backupSyncIntervalMs: 300000
