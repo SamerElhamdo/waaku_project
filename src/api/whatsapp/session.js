@@ -67,6 +67,13 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
 const AUTH_STRATEGY = (process.env.WAAKU_AUTH_STRATEGY || 'local').toLowerCase()
 const REDIS_URL = process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || '6379'}`
 const ZIP_DIR = process.env.WAAKU_ZIP_DIR || os.tmpdir()
+const SESSION_DEBUG = process.env.WAAKU_SESSION_DEBUG === 'true'
+
+function dbg(sessionId, ...args) {
+	if (!SESSION_DEBUG) return
+	const tag = sessionId ? `[SESSION-DEBUG][${sessionId}]` : '[SESSION-DEBUG]'
+	console.log(tag, ...args)
+}
 
 // Ensure RemoteAuth zip/temp paths use writable temp dir to avoid EACCES
 function patchRemoteAuthPaths() {
