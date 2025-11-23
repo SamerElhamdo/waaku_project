@@ -73,7 +73,7 @@ vite.config.js, tailwind.config.js
 cp .env.example .env
 ```
 
-Set these variables (see .env.example for all):
+# Set these variables (see .env.example for all):
 
 - VITE_API_BASE_URL=http://localhost:4300 (or omit to use window origin)
 - VITE_API_KEY=<raw UUIDv4 without dashes>
