@@ -929,17 +929,24 @@ function closeActionMenu() {
 	actionMenuId.value = ''
 }
 
+function debugForwardState(label = '') {
+	console.info('[ForwardDebug]', label, {
+		available: props.availableChats?.length || 0,
+		forwardLoaded: forwardChats.value.length,
+		filtered: filteredForwardChats.value.length,
+		loading: forwardLoading.value,
+		search: forwardSearch.value
+	})
+}
+
 function forwardMessage(message) {
 	closeActionMenu()
 	forwardMessagePayload.value = message
 	forwardTargets.value = []
-	if (!forwardChats.value.length && (!props.availableChats || !props.availableChats.length)) {
-		loadForwardChats().finally(() => {
-			forwardModal.value = true
-		})
-	} else {
-		forwardModal.value = true
-	}
+	const shouldLoad = !props.availableChats || !props.availableChats.length || !forwardChats.value.length
+	if (shouldLoad) loadForwardChats()
+	debugForwardState('open modal')
+	forwardModal.value = true
 }
 
 function toggleForwardTarget(chatId) {
@@ -973,11 +980,13 @@ async function loadForwardChats() {
 	try {
 		const chats = await api.getChats(props.sessionId)
 		forwardChats.value = chats || []
+		debugForwardState('loaded via API')
 	} catch (err) {
 		console.error('Failed to load chats for forward', err)
 		forwardChats.value = []
 	} finally {
 		forwardLoading.value = false
+		debugForwardState('after load attempt')
 	}
 }
 
@@ -1188,6 +1197,7 @@ onMounted(() => {
 	onSocket('chat:update', handleChatUpdate)
 	onSocket('message:received', handleMessageReceived)
 	setupMediaObserver()
+	debugForwardState('mounted')
 })
 
 onUnmounted(() => {
