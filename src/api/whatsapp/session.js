@@ -1156,8 +1156,18 @@ async function saveContact(sessionId, { phone, firstName, lastName = '', syncToA
 	if (!phone || !firstName) {
 		throw new Error('phone and firstName are required')
 	}
-	await s.client.saveOrEditAddressbookContact(String(phone), String(firstName), String(lastName), syncToAddressbook)
-	return { success: true }
+	const normalizedPhone = String(phone).trim()
+	const first = String(firstName).trim()
+	const last = String(lastName || '').trim()
+	try {
+		console.log(`[CONTACT] Saving contact for session=${sessionId} phone=${normalizedPhone} first=${first} last=${last} sync=${syncToAddressbook}`)
+		const result = await s.client.saveOrEditAddressbookContact(normalizedPhone, first, last, syncToAddressbook)
+		console.log(`[CONTACT] Saved contact result:`, result || 'ok')
+		return { success: true, phone: normalizedPhone, firstName: first, lastName: last }
+	} catch (err) {
+		console.error(`[CONTACT] Failed to save contact for ${sessionId}:`, err?.message || err)
+		throw err
+	}
 }
 
 async function blockContact(sessionId, phone) {

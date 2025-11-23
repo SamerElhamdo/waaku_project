@@ -6,6 +6,7 @@ async function saveContactHandler(req, res) {
 		if (!sessionId || !phone || !firstName) {
 			return res.status(400).json({ error: 'sessionId, phone, and firstName are required' })
 		}
+		console.log(`[CONTACT][API] save -> session=${sessionId} phone=${phone} first=${firstName} last=${lastName}`)
 		const result = await saveContact(sessionId, {
 			phone: String(phone),
 			firstName: String(firstName),
@@ -25,6 +26,7 @@ async function blockContactHandler(req, res) {
 		if (!sessionId || !phone) {
 			return res.status(400).json({ error: 'sessionId and phone are required' })
 		}
+		console.log(`[CONTACT][API] block -> session=${sessionId} phone=${phone}`)
 		const result = await blockContact(sessionId, String(phone))
 		res.json(result)
 	} catch (err) {
@@ -39,6 +41,7 @@ async function unblockContactHandler(req, res) {
 		if (!sessionId || !phone) {
 			return res.status(400).json({ error: 'sessionId and phone are required' })
 		}
+		console.log(`[CONTACT][API] unblock -> session=${sessionId} phone=${phone}`)
 		const result = await unblockContact(sessionId, String(phone))
 		res.json(result)
 	} catch (err) {
